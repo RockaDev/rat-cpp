@@ -153,7 +153,11 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="resources.h" />
     <ClInclude Include="server.h" />
+    <ClInclude Include="sockinitialize.h" />
+    <ClInclude Include="sys.h" />
+    <ClInclude Include="WndRegisters.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

