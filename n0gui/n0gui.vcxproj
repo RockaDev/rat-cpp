@@ -157,6 +157,7 @@
     <ClInclude Include="server.h" />
     <ClInclude Include="sockinitialize.h" />
     <ClInclude Include="sys.h" />
+    <ClInclude Include="wndfuncs.h" />
     <ClInclude Include="WndRegisters.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

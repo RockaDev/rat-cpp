@@ -5,8 +5,11 @@ const wchar_t* wn_title = L"R4T $HIT [Server]";
 wchar_t g_szClientClassName[] = L"Client Screen";
 wchar_t g_szClientFTPClassName[] = L"File Transfer";
 
+HWND hwndFileList;
+
 HBITMAP hBitmap = (HBITMAP)LoadImageW(NULL, L"kkk.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
 HICON hcIcon = (HICON)LoadImageW(NULL, L"C:\\Users\\mineo\\Desktop\\ttt.ico", IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
+HBITMAP hFtpBG = (HBITMAP)LoadImageW(NULL, L"ftpbg.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
 
 ATOM WndRegisterClass(HINSTANCE hInstance);
 ATOM WndClientRegisterClass(HINSTANCE hClientInstance);
@@ -68,7 +71,7 @@ ATOM WndClientFTPRegisterClass(HINSTANCE hInstance)
     wcFtp.hInstance = hInstance;
     wcFtp.hIcon = hcIcon;
     wcFtp.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wcFtp.hbrBackground = CreateSolidBrush(RGB(0,0,0));
+    wcFtp.hbrBackground = CreatePatternBrush(hFtpBG);
     wcFtp.lpszMenuName = NULL;
     wcFtp.lpszClassName = g_szClientFTPClassName;
     wcFtp.hIconSm = LoadIcon(NULL, IDI_APPLICATION);

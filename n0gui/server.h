@@ -12,6 +12,7 @@
 #include <map>
 #include <windows.h>
 #include <gdiplus.h>
+#include <CommCtrl.h>
 
 #pragma comment(lib,"gdiplus.lib")
 #pragma comment(lib,"User32.lib")

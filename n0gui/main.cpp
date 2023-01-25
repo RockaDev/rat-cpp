@@ -3,7 +3,7 @@
 #include "resources.h"
 #include "sockinitialize.h"
 #include "sys.h"
-#include <commctrl.h>
+#include "wndfuncs.h"
 #include <set>
 
 #pragma warning(disable:28251)
@@ -29,7 +29,6 @@ std::map<int, std::wstring> clientItems;
 
 
 void OnCreate(HWND hwnd, WPARAM wParam, LPARAM lParam);
-
 
 void OnCreate(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
@@ -460,8 +459,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         case CLIENT_FTP:
         {
-            const int gHwndClientWidth = 800;
-            const int gHwndClientHeight = 700;
+            const int gHwndClientWidth = 600;
+            const int gHwndClientHeight = 550;
 
             SOCKET selectedSocket = clientSockets[itemIndex];
             auto it = std::find(clientSockets.begin(), clientSockets.end(), selectedSocket);
@@ -612,8 +611,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     return 0;
 };
 
+
 LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+    
+    ItemMenu dpItem;
     switch (uMsg)
     {
 
@@ -621,27 +623,45 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
     {
         SOCKET selectedSocket = clientSockets[itemIndex];
         auto it = std::find(clientSockets.begin(), clientSockets.end(), selectedSocket);
-        send(selectedSocket, "requestdirs", strlen("requestdirs"), 0);
+        //send(selectedSocket, "requestdirs", strlen("requestdirs"), 0);
 
-        HWND hwndTreeView = CreateWindowEx(WS_EX_CLIENTEDGE, WC_TREEVIEW, L"", WS_CHILD | WS_VISIBLE, 50, 50, 600, 300, FtpHwnd, (HMENU)87, GetModuleHandle(NULL), NULL);
+        hwndFileList = CreateWindowW(WC_LISTVIEW, L"",
+            WS_VISIBLE | WS_BORDER | WS_CHILD | LVS_SINGLESEL | LVS_REPORT | LVS_EDITLABELS,
+            10, 10, 555, 300,
+            FtpHwnd, (HMENU)210, hInstance, 0);
 
-        TVINSERTSTRUCT tvis;
-        tvis.hParent = NULL;
-        tvis.hInsertAfter = TVI_LAST;
-        tvis.item.mask = TVIF_TEXT | TVIF_PARAM;
+        if (hwndFileList)
+        {
+            CreateColumn(hwndFileList, 25, 100, (wchar_t*)L"File");
+            CreateColumn(hwndFileList, 25, 100, (wchar_t*)L"Path");
+            CreateItem(hwndFileList, (wchar_t*)L"hey");
+        }
 
-        // Add the root directory
-        wchar_t heg[] = L"Root";
-        tvis.item.pszText = heg;
-        tvis.item.lParam = (LPARAM)"Root";
-        HTREEITEM hRoot = (HTREEITEM)SendMessage(hwndTreeView, TVM_INSERTITEM, 0, (LPARAM)&tvis);
+        dpItem.GlobalButtons(FtpHwnd);
 
         break;
     }
 
-    case WM_PAINT:
+    case WM_CONTEXTMENU:
     {
+        dpItem.CallItemMenu(hwndFileList, FtpHwnd);
+        break;
+    }
 
+    case WM_COMMAND:
+    {
+        switch (LOWORD(wParam))
+        {
+            case ITEM_RUN:
+            {
+                MessageBoxA(NULL, "RUN!", "Run", MB_OK);
+                break;
+            }
+
+            default:
+                return DefWindowProc(FtpHwnd, uMsg, wParam, lParam);
+
+        }
         break;
     }
 
