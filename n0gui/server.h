@@ -10,6 +10,7 @@
 #include <codecvt>
 #include <vector>
 #include <map>
+#include <Shlwapi.h>
 #include <windows.h>
 #include <gdiplus.h>
 #include <CommCtrl.h>
@@ -18,6 +19,7 @@
 #pragma comment(lib,"User32.lib")
 #pragma comment(lib,"ws2_32.lib")
 #pragma comment(lib,"comctl32.lib")
+#pragma comment(lib,"shlwapi.lib")
 
 typedef int socklen_t;
 

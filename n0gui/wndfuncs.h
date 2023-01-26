@@ -19,7 +19,7 @@ void ItemMenu::CallItemMenu(HWND hwnd, HWND mainHwnd)
 
     LVHITTESTINFO hitTestInfo;
     cursorPos.x -= 10;
-    cursorPos.y -= 5;
+    cursorPos.y -= 15;
     hitTestInfo.pt = cursorPos;
 
     int itemIndex = ListView_HitTest(hwnd, &hitTestInfo);
@@ -29,8 +29,8 @@ void ItemMenu::CallItemMenu(HWND hwnd, HWND mainHwnd)
         HMENU hMenu = CreatePopupMenu();
 
         InsertMenu(hMenu, 0, MF_BYPOSITION, ITEM_RUN, L"Run File");
-        InsertMenu(hMenu, 0, MF_BYPOSITION, ITEM_PATH, L"Insert Own Path");
-        InsertMenu(hMenu, 0, MF_BYPOSITION, ITEM_DEFAULT_PATH, L"Add To");
+        InsertMenu(hMenu, 1, MF_BYPOSITION, ITEM_PATH, L"Insert Own Path");
+        InsertMenu(hMenu, 2, MF_BYPOSITION, ITEM_DEFAULT_PATH, L"Add To");
         SetMenuItemBitmaps(hMenu, ITEM_RUN, MF_BYCOMMAND, hCmdItemIcon, hCmdItemIcon);
         SetMenuItemBitmaps(hMenu, ITEM_PATH, MF_BYCOMMAND, hFunItemIcon, hFunItemIcon);
         SetMenuItemBitmaps(hMenu, ITEM_DEFAULT_PATH, MF_BYCOMMAND, hRmClientItemIcon, hRmClientItemIcon);

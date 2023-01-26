@@ -25,6 +25,7 @@ UINT selectedMenuItem;
 int itemIndex;
 
 std::wstring aCounter;
+std::wstring itemFileName;
 std::map<int, std::wstring> clientItems;
 
 
@@ -611,11 +612,15 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     return 0;
 };
 
+bool isDestroyed = false;
+
 
 LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    
     ItemMenu dpItem;
+    HANDLE hFile;
+    int itemFileIndex = 0;
+
     switch (uMsg)
     {
 
@@ -658,6 +663,31 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
                 break;
             }
 
+            case 211:
+            {
+                wchar_t filename[MAX_PATH];
+
+                OPENFILENAME ofn;
+                ZeroMemory(&filename, sizeof(filename));
+                ZeroMemory(&ofn, sizeof(ofn));
+                ofn.lStructSize = sizeof(ofn);
+                ofn.hwndOwner = NULL;
+                ofn.lpstrFilter = L"Text Files\0*.txt\0Any File\0*.*\0";
+                ofn.lpstrFile = filename;
+                ofn.nMaxFile = MAX_PATH;
+                ofn.lpstrTitle = L"Select a File!";
+                ofn.Flags = OFN_DONTADDTORECENT | OFN_FILEMUSTEXIST | OFN_EXPLORER;
+                
+                if (GetOpenFileName(&ofn))
+                {
+                    wchar_t* fileTitle = PathFindFileName(filename);
+                    CreateItem(hwndFileList, fileTitle);
+                    ListView_SetItemText(hwndFileList, 0, 1, filename);
+                }
+
+                break;
+            }
+
             default:
                 return DefWindowProc(FtpHwnd, uMsg, wParam, lParam);
 
@@ -665,15 +695,11 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
         break;
     }
 
-    case WM_CLOSE:
+    case WM_DESTROY:
     {
-        DestroyWindow(FtpHwnd);
+        DestroyWindow(hwndFTP);
         break;
     }
-
-    case WM_DESTROY:
-        DestroyWindow(FtpHwnd);
-        return 0;
 
     default:
         return DefWindowProc(FtpHwnd, uMsg, wParam, lParam);
