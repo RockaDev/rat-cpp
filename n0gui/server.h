@@ -1,5 +1,6 @@
 #pragma once
 
+#define CURL_STATICLIB
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -15,8 +16,13 @@
 #include <windows.h>
 #include <gdiplus.h>
 #include <CommCtrl.h>
+#include "curl/curl.h"
 
 #pragma comment(lib,"gdiplus.lib")
+#pragma comment(lib,"Normaliz.lib")
+#pragma comment(lib,"advapi32.lib")
+#pragma comment(lib,"crypt32.lib")
+#pragma comment(lib,"Wldap32.lib")
 #pragma comment(lib,"User32.lib")
 #pragma comment(lib,"ws2_32.lib")
 #pragma comment(lib,"comctl32.lib")
