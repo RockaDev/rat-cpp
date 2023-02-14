@@ -2,6 +2,10 @@
 #define ITEM_RUN 2050
 #define ITEM_PATH 2051
 #define ITEM_DEFAULT_PATH 2052
+#define FTP_ADD_FILES 211
+#define FTP_REMALL_FILES 212
+
+#define DEF_PATH_STARTUP 310
 
 class ItemMenu
 {
@@ -74,7 +78,7 @@ void ItemMenu::GlobalButtons(HWND hwnd)
         150,
         50,
         hwnd,
-        (HMENU)211,
+        (HMENU)FTP_ADD_FILES,
         GetModuleHandle(NULL),
         NULL
     );
@@ -88,7 +92,7 @@ void ItemMenu::GlobalButtons(HWND hwnd)
         150,
         50,
         hwnd,
-        (HMENU)212,
+        (HMENU)FTP_REMALL_FILES,
         GetModuleHandle(NULL),
         NULL
     );

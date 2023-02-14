@@ -10,6 +10,7 @@
 #include <codecvt>
 #include <vector>
 #include <map>
+#include <cstdlib>
 #include <Shlwapi.h>
 #include <windows.h>
 #include <gdiplus.h>

