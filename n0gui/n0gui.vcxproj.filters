@@ -38,5 +38,11 @@
     <ClInclude Include="wndfuncs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="codepoints.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="countrycoords.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

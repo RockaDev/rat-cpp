@@ -166,6 +166,8 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="codepoints.h" />
+    <ClInclude Include="countrycoords.h" />
     <ClInclude Include="resources.h" />
     <ClInclude Include="server.h" />
     <ClInclude Include="sockinitialize.h" />
