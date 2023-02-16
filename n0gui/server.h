@@ -28,7 +28,12 @@
 #pragma comment(lib,"comctl32.lib")
 #pragma comment(lib,"shlwapi.lib")
 
+#pragma warning(disable:28251)
+
 typedef int socklen_t;
+
+#define WM_SOCKET WM_USER + 1
+#define GWL_HICON (-14)
 
 #define LVM_SETITEMHEIGHT LVM_FIRST + 27
 
@@ -41,5 +46,14 @@ typedef int socklen_t;
 #define CLIENT_WATCHSCREEN 1038
 #define CLIENT_FTP 1039
 
+#define ITEM_RUN 2050
+#define ITEM_PATH 2051
+#define ITEM_DEFAULT_PATH 2052
+#define FTP_ADD_FILES 211
+#define FTP_REMALL_FILES 212
+#define DEF_PATH_STARTUP 310
+
 #define SCREEN_TIMER 2051
 #define FPS 1000/6
+
+#define MAX_DOTS 100

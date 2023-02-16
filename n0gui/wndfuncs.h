@@ -1,11 +1,4 @@
 #pragma once
-#define ITEM_RUN 2050
-#define ITEM_PATH 2051
-#define ITEM_DEFAULT_PATH 2052
-#define FTP_ADD_FILES 211
-#define FTP_REMALL_FILES 212
-
-#define DEF_PATH_STARTUP 310
 
 class ItemMenu
 {
@@ -67,6 +60,36 @@ void ItemMenu::CallItemMenu(HWND hwnd, HWND mainHwnd)
     return;
 }
 
+
+ATOM CreateColumn(HWND hwndLV, int iCol, int width, wchar_t table_txt[])
+{
+    LVCOLUMN lvc;
+
+    lvc.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM;
+    lvc.fmt = LVCFMT_LEFT;
+    lvc.cx = width;
+    lvc.pszText = table_txt;
+    lvc.iSubItem = iCol;
+
+    return ListView_InsertColumn(hwndLV, iCol, &lvc);
+};
+
+ATOM CreateItem(HWND hwndList, wchar_t column_txt[])
+{
+    LVITEM lvi = { 0 };
+
+    lvi.mask = LVIF_TEXT;
+    lvi.pszText = column_txt;
+    lvi.state = LVIS_SELECTED;
+    lvi.stateMask = LVIS_SELECTED;
+
+    SendMessageW(hwndList, LVM_SETITEMSTATE, 0, (LPARAM)&lvi);
+    SendMessageW(hwndList, LVM_SETTEXTCOLOR, (WPARAM)0, (LPARAM)RGB(122, 5, 5));
+
+    return ListView_InsertItem(hwndList, &lvi);
+}
+
+
 void ItemMenu::GlobalButtons(HWND hwnd)
 {
     HWND hwndBtnFile = CreateWindowW(
@@ -96,4 +119,36 @@ void ItemMenu::GlobalButtons(HWND hwnd)
         GetModuleHandle(NULL),
         NULL
     );
+}
+
+void OnCreate(HWND hwnd, WPARAM wParam, LPARAM lParam)
+{
+    HWND input = CreateWindowW(
+        L"EDIT",
+        L"cmd: dir",
+        WS_CHILD | WS_VISIBLE | WS_BORDER,
+        535,
+        350,
+        200,
+        50,
+        hwnd,
+        (HMENU)14,
+        GetModuleHandle(NULL),
+        NULL
+    );
+
+    HWND hwndButton = CreateWindowW(
+        L"BUTTON",
+        L"Send Command To All",
+        WS_CHILD | WS_VISIBLE,
+        750,
+        350,
+        150,
+        50,
+        hwnd,
+        (HMENU)15,
+        GetModuleHandle(NULL),
+        NULL
+    );
+
 }
