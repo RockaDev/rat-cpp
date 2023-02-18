@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <winsock2.h>
 #include <thread>
+#include <sstream>
 #include <locale>
 #include <codecvt>
 #include <vector>
@@ -32,8 +33,10 @@
 
 typedef int socklen_t;
 
+
 #define WM_SOCKET WM_USER + 1
 #define GWL_HICON (-14)
+#define WM_FOLDERCONTENT (WM_USER + 1)
 
 #define LVM_SETITEMHEIGHT LVM_FIRST + 27
 

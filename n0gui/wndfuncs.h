@@ -7,6 +7,71 @@ public:
     void GlobalButtons(HWND hwnd);
 };
 
+class FtpMenu
+{
+public:
+    void UpdateItems(HWND hwnd,HWND hFtpList, char buffer[], int lenRecv);
+};
+
+void FtpMenu::UpdateItems(HWND hwnd, HWND hFtpList, char buffer[], int lenRecv)
+{
+    std::string fileList(buffer, lenRecv);
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, buffer, lenRecv, NULL, 0);
+    std::vector<wchar_t> wfileList(wlen + 1);
+    MultiByteToWideChar(CP_UTF8, 0, buffer, lenRecv, wfileList.data(), wlen);
+
+    std::vector<std::wstring> files;
+    std::wstringstream ss(wfileList.data());
+    std::wstring item;
+    while (std::getline(ss, item, L'\n'))
+    {
+        files.push_back(item);
+    }
+
+    ListView_DeleteAllItems(hFtpList);
+    int yPosFiles = 0; // initialize y-position to 0 for files
+    int yPosFolders = 0; // initialize y-position to 0 for folders
+
+    // Add items to the list control
+    for (int i = 0; i < files.size(); i++)
+    {
+        LVITEM lvItem = { 0 };
+        lvItem.mask = LVIF_TEXT;
+        lvItem.iItem = i;
+        lvItem.iSubItem = 0;
+        lvItem.pszText = (LPWSTR)files[i].c_str();
+        ListView_InsertItem(hFtpList, &lvItem);
+
+        // Set size to a dummy value for now
+        lvItem.iSubItem = 1;
+        lvItem.pszText = (LPWSTR)L"10 KB";
+        ListView_SetItemText(hFtpList, i, 1, lvItem.pszText);
+
+        if (!files[i].empty() && files[i].back() == L'\\')
+        {
+            // Set folder text and color
+            ListView_SetItemText(hFtpList, i, 0, (LPWSTR)files[i].c_str());
+            ListView_SetTextColor(hFtpList, i, RGB(255, 0, 0));
+
+            // Set position for folder item
+            ListView_SetItemPosition(hFtpList, i, 0, yPosFolders);
+            yPosFolders += 20; // increase y-position to separate folder items
+        }
+        else
+        {
+            // Set file size to a dummy value for now
+            lvItem.iSubItem = 1;
+            lvItem.pszText = (LPWSTR)L"10 KB";
+            ListView_SetItemText(hFtpList, i, 1, lvItem.pszText);
+
+            // Set position for file item
+            ListView_SetItemPosition(hFtpList, i, 0, yPosFiles);
+            yPosFiles += 20; // increase y-position to separate file items
+        }
+    }
+
+}
+
 void ItemMenu::CallItemMenu(HWND hwnd, HWND mainHwnd)
 {
     int selectedMenuItem = 0;
