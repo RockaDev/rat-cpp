@@ -91,11 +91,11 @@ void ItemMenu::CallItemMenu(HWND hwnd, HWND mainHwnd)
         HMENU hMenu = CreatePopupMenu();
 
         InsertMenu(hMenu, 0, MF_BYPOSITION, ITEM_RUN, L"Run File");
-        InsertMenu(hMenu, 1, MF_BYPOSITION, ITEM_PATH, L"Insert Own Path");
-        InsertMenu(hMenu, 2, MF_BYPOSITION, ITEM_DEFAULT_PATH, L"Add To");
+        InsertMenu(hMenu, 1, MF_BYPOSITION, ITEM_DOWNLOAD, L"Download File");
+        InsertMenu(hMenu, 2, MF_BYPOSITION, ITEM_DELETE_FILE, L"Delete File");
         SetMenuItemBitmaps(hMenu, ITEM_RUN, MF_BYCOMMAND, hCmdItemIcon, hCmdItemIcon);
-        SetMenuItemBitmaps(hMenu, ITEM_PATH, MF_BYCOMMAND, hFunItemIcon, hFunItemIcon);
-        SetMenuItemBitmaps(hMenu, ITEM_DEFAULT_PATH, MF_BYCOMMAND, hRmClientItemIcon, hRmClientItemIcon);
+        SetMenuItemBitmaps(hMenu, ITEM_DOWNLOAD, MF_BYCOMMAND, hFunItemIcon, hFunItemIcon);
+        SetMenuItemBitmaps(hMenu, ITEM_DELETE_FILE, MF_BYCOMMAND, hRmClientItemIcon, hRmClientItemIcon);
 
         MENUINFO mi = { 0 };
         mi.cbSize = sizeof(MENUINFO);
@@ -157,6 +157,20 @@ ATOM CreateItem(HWND hwndList, wchar_t column_txt[])
 
 void ItemMenu::GlobalButtons(HWND hwnd)
 {
+    HWND hwndRefresh = CreateWindowW(
+        L"BUTTON",
+        L"Refresh",
+        WS_CHILD | WS_VISIBLE,
+        50,
+        400,
+        70,
+        50,
+        hwnd,
+        (HMENU)FTP_REFRESH,
+        GetModuleHandle(NULL),
+        NULL
+    );
+
     HWND hwndBtnFile = CreateWindowW(
         L"BUTTON",
         L"Add File",

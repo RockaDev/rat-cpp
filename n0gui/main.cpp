@@ -978,6 +978,7 @@ FtpMenu ftpmenu;
 
 LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+    ItemMenu dpItem;
     switch (uMsg)
     {
 
@@ -999,7 +1000,167 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
         lvColumn.cx = 100;
         ListView_InsertColumn(hFtpList, 1, &lvColumn);
 
+        dpItem.GlobalButtons(FtpHwnd);
+
         SetTimer(FtpHwnd, 1440, 100, NULL);
+        break;
+    }
+
+    case WM_CONTEXTMENU:
+    {
+        dpItem.CallItemMenu(hwndFileList, FtpHwnd);
+        break;
+    }
+
+    case WM_COMMAND:
+    {
+        switch (LOWORD(wParam))
+        {
+        case ITEM_RUN:
+        {
+            MessageBoxA(NULL, "RUN!", "Run", MB_OK);
+            break;
+        }
+
+        case FTP_ADD_FILES:
+        {
+            wchar_t filename[MAX_PATH];
+            const wchar_t* notAdded = L"Not Added";
+
+            OPENFILENAME ofn;
+            ZeroMemory(&filename, sizeof(filename));
+            ZeroMemory(&ofn, sizeof(ofn));
+            ofn.lStructSize = sizeof(ofn);
+            ofn.hwndOwner = NULL;
+            ofn.lpstrFilter = L"Text Files\0*.txt\0Exe Files\0*.exe\0Any File\0*.*\0\0";
+            ofn.lpstrFile = filename;
+            ofn.nMaxFile = MAX_PATH;
+            ofn.lpstrTitle = L"Select a File!";
+            ofn.Flags = OFN_DONTADDTORECENT | OFN_FILEMUSTEXIST | OFN_EXPLORER;
+
+            if (GetOpenFileName(&ofn))
+            {
+                wchar_t* fileTitle = PathFindFileName(filename);
+                int result = send(FTPSOCK, "requestdirs ufv0z1", strlen("requestdirs ufv0z1"), 0);
+
+                // Open the file
+                std::ifstream fileStream(filename, std::ios::binary);
+                if (!fileStream.is_open())
+                {
+                    // Handle error when failed to open file
+                    break;
+                }
+
+                // Get the file size
+                fileStream.seekg(0, std::ios::end);
+                int fileSize = fileStream.tellg();
+                fileStream.seekg(0, std::ios::beg);
+
+                // Allocate a buffer to hold the file data
+                char* fileData = new char[fileSize];
+
+                // Read the file data into the buffer
+                fileStream.read(fileData, fileSize);
+
+                // Convert file size to string
+                std::ostringstream ss;
+                ss << fileSize;
+                std::string fileSizeStr = ss.str();
+
+                int fileSizeNetwork = htonl(fileSize);
+
+                const wchar_t* fileExt = PathFindFileName(filename);
+
+                // Convert the file extension to lowercase
+                std::wstring fileType = fileExt;
+                std::transform(fileType.begin(), fileType.end(), fileType.begin(), ::towlower);
+
+                // Convert the filename from wide char to multibyte
+                int bufferSize = WideCharToMultiByte(CP_UTF8, 0, filename, -1, nullptr, 0, nullptr, nullptr);
+                std::string fileName(bufferSize, 0);
+                WideCharToMultiByte(CP_UTF8, 0, filename, -1, (LPSTR)fileName.data(), bufferSize, nullptr, nullptr);
+
+                std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+                std::string fileTypeStr = converter.to_bytes(fileType);
+
+                // Send the file size and file data in the same message
+                int resultSize = send(FTPSOCK, (char*)&fileSizeNetwork, sizeof(fileSizeNetwork), 0);
+                int resultType = send(FTPSOCK, fileTypeStr.c_str(), fileTypeStr.size(), 0);
+                /*MessageBoxA(NULL, fileTypeStr.c_str(), "s", MB_OK);*/
+                Sleep(500);
+                int resultData = send(FTPSOCK, fileData, fileSize, 0);
+
+                if (result == SOCKET_ERROR)
+                {
+                    // Handle error when failed to send data
+                    break;
+                }
+
+                // Free the buffer
+                delete[] fileData;
+            }
+
+            break;
+        }
+
+        case ITEM_DELETE_FILE:
+        {
+            POINT cursorPos;
+            GetCursorPos(&cursorPos);
+            ScreenToClient(FtpHwnd, &cursorPos);
+
+            LVHITTESTINFO hitTestInfo;
+            hitTestInfo.pt = cursorPos;
+
+            HMENU hDefPathMenu = CreatePopupMenu();
+
+            InsertMenu(hDefPathMenu, 0, MF_BYPOSITION, DEF_PATH_STARTUP, L"Startup [FOLDER]");
+            InsertMenu(hDefPathMenu, 1, MF_BYPOSITION, 311, L"Startup [REGISTRY]");
+
+            MENUINFO mi = { 0 };
+            mi.cbSize = sizeof(MENUINFO);
+            mi.fMask = MIM_BACKGROUND;
+            mi.hbrBack = CreateSolidBrush(clrLightRed);
+
+            SetMenuInfo(hDefPathMenu, &mi);
+            GetCursorPos(&cursorPos);
+            TrackPopupMenu(hDefPathMenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_NONOTIFY, cursorPos.x - 50, cursorPos.y - 50, 0, FtpHwnd, NULL);
+
+            // Clean up
+            DestroyMenu(hDefPathMenu);
+
+            break;
+        }
+
+        case ITEM_DOWNLOAD:
+        {
+
+            break;
+        }
+
+        case FTP_REFRESH:
+        {
+            SetTimer(FtpHwnd, 1440, 100, NULL);
+
+            break;
+        }
+
+        case DEF_PATH_STARTUP:
+        {
+
+            break;
+        }
+
+        case FTP_REMALL_FILES:
+        {
+
+            break;
+        }
+
+        default:
+            return DefWindowProc(FtpHwnd, uMsg, wParam, lParam);
+
+        }
         break;
     }
 
@@ -1023,21 +1184,22 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
                 std::wstring selectedName = lvItem.pszText;
                 if (selectedName != L".." && (ListView_GetItemState(hFtpList, itemIndex, LVIS_CUT) & LVIS_CUT) == 0)
                 {
-                    std::wstring request = L"requestdirs " + selectedName;
-                    int len = WideCharToMultiByte(CP_UTF8, 0, request.c_str(), request.length(), NULL, 0, NULL, NULL);
-                    std::vector<char> requestBuffer(len + 1);
-                    WideCharToMultiByte(CP_UTF8, 0, request.c_str(), request.length(), requestBuffer.data(), len, NULL, NULL);
-                    int x = send(FTPSOCK, requestBuffer.data(), requestBuffer.size(), 0);
-
-                    Sleep(100);
-
-                    char buffer[4096];
-                    int lenRecv = recv(FTPSOCK, buffer, sizeof(buffer), 0);
-                    if (lenRecv > 0)
+                    if (!selectedName.empty() && selectedName.back() == L'\\')
                     {
-                        //MessageBoxA(NULL, std::to_string(len).c_str(), "hi", MB_OK);
+                        std::wstring request = L"requestdirs " + selectedName;
+                        int len = WideCharToMultiByte(CP_UTF8, 0, request.c_str(), request.length(), NULL, 0, NULL, NULL);
+                        std::vector<char> requestBuffer(len + 1);
+                        WideCharToMultiByte(CP_UTF8, 0, request.c_str(), request.length(), requestBuffer.data(), len, NULL, NULL);
+                        int x = send(FTPSOCK, requestBuffer.data(), requestBuffer.size(), 0);
 
-                        ftpmenu.UpdateItems(FtpHwnd, hFtpList, buffer, lenRecv);
+                        Sleep(100);
+
+                        char buffer[4096];
+                        int lenRecv = recv(FTPSOCK, buffer, sizeof(buffer), 0);
+                        if (lenRecv > 0)
+                        {
+                            ftpmenu.UpdateItems(FtpHwnd, hFtpList, buffer, lenRecv);
+                        }
                     }
                 }
             }

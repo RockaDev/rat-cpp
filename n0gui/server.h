@@ -11,6 +11,7 @@
 #include <locale>
 #include <codecvt>
 #include <vector>
+#include <algorithm>
 #include <map>
 #include <cstdlib>
 #include <Shlwapi.h>
@@ -50,10 +51,12 @@ typedef int socklen_t;
 #define CLIENT_FTP 1039
 
 #define ITEM_RUN 2050
-#define ITEM_PATH 2051
-#define ITEM_DEFAULT_PATH 2052
+#define ITEM_DOWNLOAD 2051
+#define ITEM_DELETE_FILE 2052
 #define FTP_ADD_FILES 211
 #define FTP_REMALL_FILES 212
+#define FTP_REFRESH 214
+
 #define DEF_PATH_STARTUP 310
 
 #define SCREEN_TIMER 2051
