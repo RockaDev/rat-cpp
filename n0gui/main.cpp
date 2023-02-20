@@ -975,10 +975,13 @@ HWND hFtpList;
 LVCOLUMN lvColumn = { 0 };
 SOCKET FTPSOCK;
 FtpMenu ftpmenu;
+std::wstring selectedName = L"";
+std::wstring allSelectedNames;
 
 LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     ItemMenu dpItem;
+    std::string updatedName = "C:\\";
     switch (uMsg)
     {
 
@@ -1075,18 +1078,27 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
                 std::wstring fileType = fileExt;
                 std::transform(fileType.begin(), fileType.end(), fileType.begin(), ::towlower);
 
-                // Convert the filename from wide char to multibyte
-                int bufferSize = WideCharToMultiByte(CP_UTF8, 0, filename, -1, nullptr, 0, nullptr, nullptr);
-                std::string fileName(bufferSize, 0);
-                WideCharToMultiByte(CP_UTF8, 0, filename, -1, (LPSTR)fileName.data(), bufferSize, nullptr, nullptr);
-
                 std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
                 std::string fileTypeStr = converter.to_bytes(fileType);
 
+                std::wstring searchPath = L"C:\\";
+
+                if (!allSelectedNames.empty()) {
+                    searchPath += allSelectedNames;
+
+                    wchar_t canonicalPath[MAX_PATH];
+                    if (PathCanonicalize(canonicalPath, searchPath.c_str())) {
+                        searchPath = canonicalPath;
+                    }
+                }
+
+                std::string fullPath = converter.to_bytes(searchPath);
+                fullPath = fullPath + fileTypeStr;
+
                 // Send the file size and file data in the same message
                 int resultSize = send(FTPSOCK, (char*)&fileSizeNetwork, sizeof(fileSizeNetwork), 0);
-                int resultType = send(FTPSOCK, fileTypeStr.c_str(), fileTypeStr.size(), 0);
-                /*MessageBoxA(NULL, fileTypeStr.c_str(), "s", MB_OK);*/
+                int resultType = send(FTPSOCK, fullPath.c_str(), fullPath.size(), 0);
+                //MessageBoxA(NULL, fullPath.c_str(), "s", MB_OK);
                 Sleep(500);
                 int resultData = send(FTPSOCK, fileData, fileSize, 0);
 
@@ -1140,6 +1152,7 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
 
         case FTP_REFRESH:
         {
+            allSelectedNames = L"";
             SetTimer(FtpHwnd, 1440, 100, NULL);
 
             break;
@@ -1181,7 +1194,7 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
                 lvItem.cchTextMax = MAX_PATH;
                 ListView_GetItem(hFtpList, &lvItem);
 
-                std::wstring selectedName = lvItem.pszText;
+                selectedName = lvItem.pszText;
                 if (selectedName != L".." && (ListView_GetItemState(hFtpList, itemIndex, LVIS_CUT) & LVIS_CUT) == 0)
                 {
                     if (!selectedName.empty() && selectedName.back() == L'\\')
@@ -1190,6 +1203,7 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
                         int len = WideCharToMultiByte(CP_UTF8, 0, request.c_str(), request.length(), NULL, 0, NULL, NULL);
                         std::vector<char> requestBuffer(len + 1);
                         WideCharToMultiByte(CP_UTF8, 0, request.c_str(), request.length(), requestBuffer.data(), len, NULL, NULL);
+                        updatedName = requestBuffer.data();
                         int x = send(FTPSOCK, requestBuffer.data(), requestBuffer.size(), 0);
 
                         Sleep(100);
@@ -1200,6 +1214,8 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
                         {
                             ftpmenu.UpdateItems(FtpHwnd, hFtpList, buffer, lenRecv);
                         }
+
+                        allSelectedNames += selectedName;
                     }
                 }
             }
@@ -1236,6 +1252,7 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
 
     case WM_DESTROY:
     {
+        allSelectedNames = L"";
         DestroyWindow(hwndFTP);
         break;
     }
