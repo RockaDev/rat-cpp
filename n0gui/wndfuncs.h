@@ -32,44 +32,35 @@ void FtpMenu::UpdateItems(HWND hwnd, HWND hFtpList, char buffer[], int lenRecv)
     int yPosFiles = 0; // initialize y-position to 0 for files
     int yPosFolders = 0; // initialize y-position to 0 for folders
 
-    // Add items to the list control
+    ListView_SetTextBkColor(hFtpList, RGB(0, 0, 51));
+
     for (int i = 0; i < files.size(); i++)
     {
         LVITEM lvItem = { 0 };
         lvItem.mask = LVIF_TEXT;
         lvItem.iItem = i;
+
+        // Add the file name as the first subitem
         lvItem.iSubItem = 0;
         lvItem.pszText = (LPWSTR)files[i].c_str();
         ListView_InsertItem(hFtpList, &lvItem);
 
-        // Set size to a dummy value for now
+        // Define the emoji characters to use
+        WCHAR fileemoji[] = L"\U0000274C"; // Here, I'm using the folder emoji
+        WCHAR folderemoji[] = L"\U0001F4C2";
+
+        // Determine which emoji to use based on the file type
+        WCHAR* pszEmoji = (files[i].length() >= 2 && files[i][files[i].length() - 1] == L'\\') ? folderemoji : fileemoji;
+
+        // Add the emoji as the second subitem
         lvItem.iSubItem = 1;
-        lvItem.pszText = (LPWSTR)L"10 KB";
-        ListView_SetItemText(hFtpList, i, 1, lvItem.pszText);
+        lvItem.pszText = pszEmoji;
+        ListView_SetItem(hFtpList, &lvItem);
 
-        if (!files[i].empty() && files[i].back() == L'\\')
-        {
-            // Set folder text and color
-            ListView_SetItemText(hFtpList, i, 0, (LPWSTR)files[i].c_str());
-            ListView_SetTextColor(hFtpList, i, RGB(255, 0, 0));
-
-            // Set position for folder item
-            ListView_SetItemPosition(hFtpList, i, 0, yPosFolders);
-            yPosFolders += 20; // increase y-position to separate folder items
-        }
-        else
-        {
-            // Set file size to a dummy value for now
-            lvItem.iSubItem = 1;
-            lvItem.pszText = (LPWSTR)L"10 KB";
-            ListView_SetItemText(hFtpList, i, 1, lvItem.pszText);
-
-            // Set position for file item
-            ListView_SetItemPosition(hFtpList, i, 0, yPosFiles);
-            yPosFiles += 20; // increase y-position to separate file items
-        }
+        // Set the text color based on the file type
+        COLORREF textColor = RGB(0, 255,255);
+        ListView_SetTextColor(hFtpList, textColor);
     }
-
 }
 
 void ItemMenu::CallItemMenu(HWND hwnd, HWND mainHwnd)
@@ -157,47 +148,35 @@ ATOM CreateItem(HWND hwndList, wchar_t column_txt[])
 
 void ItemMenu::GlobalButtons(HWND hwnd)
 {
-    HWND hwndRefresh = CreateWindowW(
-        L"BUTTON",
-        L"Refresh",
-        WS_CHILD | WS_VISIBLE,
-        50,
-        400,
-        70,
-        50,
-        hwnd,
-        (HMENU)FTP_REFRESH,
-        GetModuleHandle(NULL),
-        NULL
-    );
 
-    HWND hwndBtnFile = CreateWindowW(
-        L"BUTTON",
-        L"Add File",
-        WS_CHILD | WS_VISIBLE,
-        150,
-        400,
-        150,
-        50,
-        hwnd,
-        (HMENU)FTP_ADD_FILES,
-        GetModuleHandle(NULL),
-        NULL
-    );
+    HBITMAP hBitmapRefresh = (HBITMAP)LoadImageW(NULL, L"refresh.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
 
-    HWND RemoveAll = CreateWindowW(
-        L"BUTTON",
-        L"Remove All",
-        WS_CHILD | WS_VISIBLE,
-        310,
-        400,
-        150,
-        50,
-        hwnd,
-        (HMENU)FTP_REMALL_FILES,
-        GetModuleHandle(NULL),
-        NULL
-    );
+    // vytvoøení tlaèítka
+    HWND hwndRefresh = CreateWindowExW(0, L"BUTTON", L"Add File", WS_CHILD | WS_VISIBLE | BS_BITMAP,
+        50, 400, 70, 50, hwnd, (HMENU)FTP_REFRESH, GetModuleHandle(NULL), NULL);
+
+    // nastavení obrázku tlaèítka
+    SendMessageW(hwndRefresh, BM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapRefresh);
+
+
+    HBITMAP hBitmapAddFile = (HBITMAP)LoadImageW(NULL, L"addfile.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+
+    // vytvoøení tlaèítka
+    HWND hwndBtnFile = CreateWindowExW(0, L"BUTTON", L"Add File", WS_CHILD | WS_VISIBLE | BS_BITMAP,
+        150, 400, 150, 50, hwnd, (HMENU)FTP_ADD_FILES, GetModuleHandle(NULL), NULL);
+
+    // nastavení obrázku tlaèítka
+    SendMessageW(hwndBtnFile, BM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapAddFile);
+
+
+    HBITMAP hBitmapremall = (HBITMAP)LoadImageW(NULL, L"removeall.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+
+    // vytvoøení tlaèítka
+    HWND RemoveAll = CreateWindowExW(0, L"BUTTON", L"Remove All", WS_CHILD | WS_VISIBLE | BS_BITMAP,
+        310, 400, 150, 50, hwnd, (HMENU)FTP_REMALL_FILES, GetModuleHandle(NULL), NULL);
+
+    // nastavení obrázku tlaèítka
+    SendMessageW(RemoveAll, BM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapremall);
 }
 
 void OnCreate(HWND hwnd, WPARAM wParam, LPARAM lParam)
@@ -216,18 +195,21 @@ void OnCreate(HWND hwnd, WPARAM wParam, LPARAM lParam)
         NULL
     );
 
-    HWND hwndButton = CreateWindowW(
-        L"BUTTON",
-        L"Send Command To All",
-        WS_CHILD | WS_VISIBLE,
-        750,
-        350,
-        150,
-        50,
-        hwnd,
-        (HMENU)15,
-        GetModuleHandle(NULL),
-        NULL
-    );
+    HBITMAP hBitmap = (HBITMAP)LoadImageW(NULL, L"cmdbtn.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+
+    // vytvoøení tlaèítka
+    HWND hwndButton = CreateWindowExW(0, L"BUTTON", L"Send Command To All", WS_CHILD | WS_VISIBLE | BS_BITMAP,
+        750, 350, 150, 50, hwnd, (HMENU)15, hInstance, NULL);
+
+    // nastavení obrázku tlaèítka
+    SendMessageW(hwndButton, BM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmap);
+
+    // Výpoèet støedu okna
+    RECT rc;
+    GetClientRect(hwnd, &rc);
+    int windowWidth = rc.right - rc.left;
+    int windowHeight = rc.bottom - rc.top;
+    int x = (windowWidth - 150) / 2;
+    int y = (windowHeight - 350) / 2;
 
 }

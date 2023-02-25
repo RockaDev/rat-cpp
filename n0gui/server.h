@@ -31,6 +31,18 @@
 #pragma comment(lib,"shlwapi.lib")
 
 #pragma warning(disable:28251)
+#pragma warning(disable:26812)
+#pragma warning(disable:6054)
+#pragma warning(disable:26454)
+#pragma warning(disable:28183)
+#pragma warning(disable:26451)
+#pragma warning(disable:6387)
+#pragma warning(disable:4244)
+#pragma warning(disable:4267)
+#pragma warning(disable:4101)
+#pragma warning(disable:4267)
+#pragma warning(disable:4098)
+#pragma warning(disable:6031)
 
 typedef int socklen_t;
 
@@ -49,6 +61,7 @@ typedef int socklen_t;
 #define CLIENT_FUN 1037
 #define CLIENT_WATCHSCREEN 1038
 #define CLIENT_FTP 1039
+#define CLIENT_REMOTE_SHELL 1840
 
 #define ITEM_RUN 2050
 #define ITEM_DOWNLOAD 2051

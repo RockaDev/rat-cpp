@@ -9,7 +9,9 @@ std::string pcnameEmoji = u8"\U0001f4bb";
 std::string greendotEmoji = u8"\U0001F7E2";
 std::string reddotEmoji = u8"\U0001F534";
 std::string ratEmoji = u8"\U0001F400";
-std::string dollarEmoji = u8"\U0001F4B2";
+std::string dollarEmoji = u8"\U0001F4B2"; 
+std::string userEmoji = u8"\U0001F4C0";
+std::string privilegesEmoji = u8"\U0001F511";
 
 std::string resulttitle()
 {

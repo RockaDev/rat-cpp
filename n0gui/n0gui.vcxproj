@@ -164,12 +164,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="remoteshell.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="codepoints.h" />
     <ClInclude Include="countrycoords.h" />
     <ClInclude Include="resources.h" />
     <ClInclude Include="server.h" />
+    <ClInclude Include="shell.h" />
     <ClInclude Include="sockinitialize.h" />
     <ClInclude Include="sys.h" />
     <ClInclude Include="wndfuncs.h" />
