@@ -1,3 +1,7 @@
+/*
+ This code in unfinished, I did not have much time to finish Remote CMD
+*/
+
 #include "server.h"
 #include "shell.h"
 
