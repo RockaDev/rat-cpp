@@ -10,6 +10,8 @@ In this project I included ->
 
 I worked also on the design of this rat. I include photos below.!
 
+![options_showcase](https://github.com/RockaDev/rat-shit/assets/83962580/e2fc34e0-0398-4c36-b6d9-60ff66c77b9f)
+
 [rat shit showcase](https://github.com/RockaDev/rat-shit/assets/83962580/d2ea7fee-f259-44c7-aa0a-c4e555fa197a)
 
 ![telegram showcase](https://github.com/RockaDev/rat-shit/assets/83962580/d52b031b-b53f-4f03-acd9-e9a67248c880)
