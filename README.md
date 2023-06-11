@@ -15,4 +15,5 @@ I worked also on the design of this rat. I include photos below.!
 
 ![rat_shit_showcase](https://github.com/RockaDev/rat-shit/assets/83962580/11b2b201-54f3-4f2f-bfea-52acc4a4ce48)
 
-![telegram showcase](https://github.com/RockaDev/rat-shit/assets/83962580/d52b031b-b53f-4f03-acd9-e9a67248c880)
+![telegram_showcase](https://github.com/RockaDev/rat-shit/assets/83962580/d83ba41c-10b7-4726-8056-ce240556e8bd)
+
