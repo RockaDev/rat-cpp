@@ -9,11 +9,12 @@ In this project I included ->
 4. Location Map (showing a pulsing visible red dot on a real map, where the client's country is coming from)
 5. Telegram Notify (if client connects, the rat will automatically send a message to a telegram group, as a notify with the clients ip address and other information)
 
-I worked also on the design of this rat. I include photos below.!
+I worked also on the design of this rat. I include photos below.
 
-![options_showcase](https://github.com/RockaDev/rat-shit/assets/83962580/e2fc34e0-0398-4c36-b6d9-60ff66c77b9f)
+![Snímka obrazovky 2023-06-11 190406](https://github.com/RockaDev/rat-cpp/assets/83962580/fd354250-b3c7-4933-95d1-8cbeeb2cf26a)
 
-![rat_shit_showcase](https://github.com/RockaDev/rat-shit/assets/83962580/11b2b201-54f3-4f2f-bfea-52acc4a4ce48)
+![rat_shit_showcase](https://github.com/RockaDev/rat-cpp/assets/83962580/9ab370bb-cc5e-4e54-8740-fde92ad86693)
 
-![telegram_showcase](https://github.com/RockaDev/rat-shit/assets/83962580/d83ba41c-10b7-4726-8056-ce240556e8bd)
+![telegram_showcase](https://github.com/RockaDev/rat-cpp/assets/83962580/adc112d5-9b56-4caa-9090-c073fcfd4b84)
+
 
