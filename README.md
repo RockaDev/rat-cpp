@@ -6,12 +6,13 @@ In this project I included ->
 1. File Explorer (can send files from server to client, view files, directories, whole drives)
 2. Remote Desktop Viewer (can watch connected client's desktop from server)
 3. CMD (run commands from server to connected client's pc, or to run the same command for ALL connected clients)
-4. Telegram Notify (if client connects, the rat will automatically send a message to a telegram group, as a notify with the clients ip address and other information)
+4. Location Map (showing a pulsing visible red dot on a real map, where the client's country is coming from)
+5. Telegram Notify (if client connects, the rat will automatically send a message to a telegram group, as a notify with the clients ip address and other information)
 
 I worked also on the design of this rat. I include photos below.!
 
 ![options_showcase](https://github.com/RockaDev/rat-shit/assets/83962580/e2fc34e0-0398-4c36-b6d9-60ff66c77b9f)
 
-[rat shit showcase](https://github.com/RockaDev/rat-shit/assets/83962580/d2ea7fee-f259-44c7-aa0a-c4e555fa197a)
+![rat_shit_showcase](https://github.com/RockaDev/rat-shit/assets/83962580/11b2b201-54f3-4f2f-bfea-52acc4a4ce48)
 
 ![telegram showcase](https://github.com/RockaDev/rat-shit/assets/83962580/d52b031b-b53f-4f03-acd9-e9a67248c880)
