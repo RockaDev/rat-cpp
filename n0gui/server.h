@@ -18,7 +18,7 @@
 #include <windows.h>
 #include <gdiplus.h>
 #include <CommCtrl.h>
-#include "curl/curl.h"
+#include "curl.h" // My include looks like: E:\SDKS\curl-8.1.2_3-win32-mingw\curl-8.1.2_3-win32-mingw\include\curl\ so you may need to add extra indexing to get the header.
 
 #pragma comment(lib,"gdiplus.lib")
 #pragma comment(lib,"Normaliz.lib")

